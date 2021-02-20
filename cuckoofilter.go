@@ -45,7 +45,13 @@ type Filter struct {
 	bitsPerItem uint
 }
 
-func NewFilter(maxNumKeys, tagsPerBucket, bitPerItem uint, table Table) *Filter {
+/*
+	tagsPerBucket: num of tags for each bucket, which is b in paper. tag is fingerprint, which is f in paper.
+	bitPerItem: num of bits for each item, which is length of tag(fingerprint)
+	maxNumKeys: num of keys that filter will store. this value should close to and lower
+				nextPow2(maxNumKeys/tagsPerBucket) * maxLoadFactor. cause table.NumBuckets is always a power of two 
+*/
+func NewFilter(tagsPerBucket, bitPerItem, maxNumKeys uint, table Table) *Filter {
 	numBuckets := getNextPow2(uint64(maxNumKeys / tagsPerBucket))
 	if float64(maxNumKeys)/float64(numBuckets*tagsPerBucket) > maxLoadFactor(tagsPerBucket) {
 		numBuckets <<= 1
@@ -60,24 +66,24 @@ func NewFilter(maxNumKeys, tagsPerBucket, bitPerItem uint, table Table) *Filter 
 	}
 }
 
-func (f *Filter) IndexHash(hv uint32) uint {
-	// table_->num_buckets is always a power of two, so modulo can be replaced with bitwise-and:
+func (f *Filter) indexHash(hv uint32) uint {
+	// table.NumBuckets is always a power of two, so modulo can be replaced with bitwise-and:
 	return uint(hv) & (f.table.NumBuckets() - 1)
 }
 
-func (f *Filter) TagHash(hv uint32) uint32 {
+func (f *Filter) tagHash(hv uint32) uint32 {
 	var tag uint32
 	tag = hv%((1<<f.bitsPerItem)-1) + 1
 	return tag
 }
-func (f *Filter) GenerateIndexTagHash(item []byte, index *uint, tag *uint32) {
+func (f *Filter) generateIndexTagHash(item []byte, index *uint, tag *uint32) {
 	hash := metro.Hash64(item, 1337)
-	*index = f.IndexHash(uint32(hash >> 32))
-	*tag = f.TagHash(uint32(hash))
+	*index = f.indexHash(uint32(hash >> 32))
+	*tag = f.tagHash(uint32(hash))
 }
-func (f *Filter) AltIndex(index uint, tag uint32) uint {
+func (f *Filter) altIndex(index uint, tag uint32) uint {
 	// 0x5bd1e995 is the hash constant from MurmurHash2
-	return f.IndexHash(uint32(index) ^ (tag * 0x5bd1e995))
+	return f.indexHash(uint32(index) ^ (tag * 0x5bd1e995))
 }
 
 func (f *Filter) Size() uint {
@@ -101,8 +107,8 @@ func (f *Filter) Add(item []byte) uint {
 	if f.victim.used {
 		return NotEnoughSpace
 	}
-	f.GenerateIndexTagHash(item, &i, &tag)
-	return f.AddImpl(i, tag)
+	f.generateIndexTagHash(item, &i, &tag)
+	return f.addImpl(i, tag)
 }
 
 func (f *Filter) AddUnique(item []byte) uint {
@@ -112,7 +118,7 @@ func (f *Filter) AddUnique(item []byte) uint {
 	return f.Add(item)
 }
 
-func (f *Filter) AddImpl(i uint, tag uint32) uint {
+func (f *Filter) addImpl(i uint, tag uint32) uint {
 	curIndex := i
 	curTag := tag
 	var oldTag uint32
@@ -128,7 +134,7 @@ func (f *Filter) AddImpl(i uint, tag uint32) uint {
 		if kickout {
 			curTag = oldTag
 		}
-		curIndex = f.AltIndex(curIndex, curTag)
+		curIndex = f.altIndex(curIndex, curTag)
 	}
 
 	f.victim.index = curIndex
@@ -142,10 +148,10 @@ func (f *Filter) Contain(key []byte) uint {
 	var i1, i2 uint
 	var tag uint32
 
-	f.GenerateIndexTagHash(key, &i1, &tag)
-	i2 = f.AltIndex(i1, tag)
+	f.generateIndexTagHash(key, &i1, &tag)
+	i2 = f.altIndex(i1, tag)
 
-	if i1 != f.AltIndex(i2, tag) {
+	if i1 != f.altIndex(i2, tag) {
 		panic("hash err")
 	}
 	found = f.victim.used && tag == f.victim.tag && (i1 == f.victim.index || i2 == f.victim.index)
@@ -161,8 +167,8 @@ func (f *Filter) Delete(key []byte) uint {
 	var i1, i2 uint
 	var tag uint32
 
-	f.GenerateIndexTagHash(key, &i1, &tag)
-	i2 = f.AltIndex(i1, tag)
+	f.generateIndexTagHash(key, &i1, &tag)
+	i2 = f.altIndex(i1, tag)
 
 	if f.table.DeleteTagFromBucket(i1, tag) || f.table.DeleteTagFromBucket(i2, tag) {
 		f.numItems--
@@ -179,7 +185,7 @@ TryEliminateVictim:
 		f.victim.used = false
 		i := f.victim.index
 		tag = f.victim.tag
-		f.AddImpl(i, tag)
+		f.addImpl(i, tag)
 	}
 	return Ok
 }

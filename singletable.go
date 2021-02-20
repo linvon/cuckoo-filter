@@ -15,8 +15,8 @@ import (
 type SingleTable struct {
 	kBytesPerBucket uint
 	//kPaddingBuckets uint
-	kTagsPerBucket  uint
-	tagMask         uint32
+	kTagsPerBucket uint
+	tagMask        uint32
 
 	numBuckets uint
 	bitsPerTag uint
@@ -25,6 +25,10 @@ type SingleTable struct {
 
 type bucket struct {
 	bits []byte
+}
+
+func NewSingleTable() *SingleTable {
+	return &SingleTable{}
 }
 
 func (t *SingleTable) Init(tagsPerBucket, bitsPerTag, num uint) {
@@ -79,6 +83,24 @@ func (t *SingleTable) ReadTag(i, j uint) uint32 {
 	case 32:
 		pos := j << 2
 		tag = binary.LittleEndian.Uint32([]byte{p.bits[pos], p.bits[pos+1], p.bits[pos+2], p.bits[pos+3]})
+	default:
+		pos := int(t.bitsPerTag * j / 8)
+		rShift := t.bitsPerTag * j % 8
+		kBytes := int((rShift + t.bitsPerTag + 7) / 8)
+		// tag is max 32bit, so max occupies 5 bytes
+		b := make([]byte, 8)
+		for k := 0; k < 8; k++ {
+			if k+1 <= kBytes {
+				b[k] = p.bits[pos+k]
+			} else {
+				b[k] = 0
+			}
+		}
+
+		tmp := binary.LittleEndian.Uint64(b)
+		tmp >>= rShift
+
+		tag = uint32(tmp)
 	}
 	return tag & t.tagMask
 }
@@ -134,6 +156,46 @@ func (t *SingleTable) WriteTag(i, j uint, n uint32) {
 		p.bits[pos+1] = b[1]
 		p.bits[pos+2] = b[2]
 		p.bits[pos+3] = b[3]
+	default:
+		pos := int(t.bitsPerTag * j / 8)
+		rShift := t.bitsPerTag * j % 8
+		kBytes := int((rShift + t.bitsPerTag + 7) / 8)
+		lShift := (rShift + t.bitsPerTag) % 8
+		// tag is max 32bit, so max occupies 5 bytes
+		b := make([]byte, 8)
+		for k := 0; k < 8; k++ {
+			if pos +k >= len(p.bits) {
+				b[k] = 0
+			} else {
+				b[k] = p.bits[pos+k]
+			}
+		}
+		rMask := uint8(0xff) >> (8 - rShift)
+		lMask := uint8(0xff) << lShift
+		if lShift == 0 {
+			lMask = uint8(0)
+		}
+		if kBytes == 1 {
+			mask := lMask | rMask
+			b[0] &= mask
+		} else {
+			b[0] &= rMask
+			for k := 1; k < kBytes-1; k++ {
+				b[k] = 0
+			}
+			b[kBytes-1] &= lMask
+		}
+		tmp := binary.LittleEndian.Uint64(b)
+		tmp |= uint64(tag) << rShift
+		binary.LittleEndian.PutUint64(b, tmp)
+
+		for k := 0; k < 8; k++ {
+			if pos + k >= len(p.bits) {
+				break
+			} else {
+				p.bits[pos+k] = b[k]
+			}
+		}
 	}
 }
 
