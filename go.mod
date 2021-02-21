@@ -1,4 +1,4 @@
-module cuckoo
+module github.com/linvon/cuckoo-filter
 
 go 1.14
 
