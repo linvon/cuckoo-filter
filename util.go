@@ -5,6 +5,12 @@
 
 package cuckoo
 
+const (
+	bitsPerByte    = 8
+	bytesPerUint64 = 8
+	bytesPerUint32 = 4
+)
+
 func getNextPow2(n uint64) uint {
 	n--
 	n |= n >> 1

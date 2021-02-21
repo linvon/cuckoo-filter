@@ -6,6 +6,8 @@
 package cuckoo
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"github.com/dgryski/go-metro"
 )
@@ -21,6 +23,11 @@ const (
 // maximum number of cuckoo kicks before claiming failure
 const kMaxCuckooCount uint = 500
 
+const (
+	TableTypeSingle = 0
+	TableTypePacked = 1
+)
+
 type Table interface {
 	Init(tagsPerBucket, bitsPerTag, num uint)
 	NumBuckets() uint
@@ -30,6 +37,18 @@ type Table interface {
 	SizeInTags() uint
 	SizeInBytes() uint
 	Info() string
+	BitsPerItem() uint
+	Encode() []byte
+	Decode([]byte) error
+}
+
+func getTable(tableType uint) interface{} {
+	switch tableType {
+	case TableTypePacked:
+		return NewPackedTable()
+	default:
+		return NewSingleTable()
+	}
 }
 
 type VictimCache struct {
@@ -49,9 +68,9 @@ type Filter struct {
 	tagsPerBucket: num of tags for each bucket, which is b in paper. tag is fingerprint, which is f in paper.
 	bitPerItem: num of bits for each item, which is length of tag(fingerprint)
 	maxNumKeys: num of keys that filter will store. this value should close to and lower
-				nextPow2(maxNumKeys/tagsPerBucket) * maxLoadFactor. cause table.NumBuckets is always a power of two 
+				nextPow2(maxNumKeys/tagsPerBucket) * maxLoadFactor. cause table.NumBuckets is always a power of two
 */
-func NewFilter(tagsPerBucket, bitPerItem, maxNumKeys uint, table Table) *Filter {
+func NewFilter(tagsPerBucket, bitsPerItem, maxNumKeys, tableType uint) *Filter {
 	numBuckets := getNextPow2(uint64(maxNumKeys / tagsPerBucket))
 	if float64(maxNumKeys)/float64(numBuckets*tagsPerBucket) > maxLoadFactor(tagsPerBucket) {
 		numBuckets <<= 1
@@ -59,10 +78,11 @@ func NewFilter(tagsPerBucket, bitPerItem, maxNumKeys uint, table Table) *Filter 
 	if numBuckets == 0 {
 		numBuckets = 1
 	}
-	table.Init(tagsPerBucket, bitPerItem, numBuckets)
+	table := getTable(tableType).(Table)
+	table.Init(tagsPerBucket, bitsPerItem, numBuckets)
 	return &Filter{
 		table:       table,
-		bitsPerItem: bitPerItem,
+		bitsPerItem: table.BitsPerItem(),
 	}
 }
 
@@ -125,13 +145,13 @@ func (f *Filter) addImpl(i uint, tag uint32) uint {
 
 	var count uint
 	for count = 0; count < kMaxCuckooCount; count++ {
-		kickout := count > 0
+		kickOut := count > 0
 		oldTag = 0
-		if f.table.InsertTagToBucket(curIndex, curTag, kickout, &oldTag) {
+		if f.table.InsertTagToBucket(curIndex, curTag, kickOut, &oldTag) {
 			f.numItems++
 			return Ok
 		}
-		if kickout {
+		if kickOut {
 			curTag = oldTag
 		}
 		curIndex = f.altIndex(curIndex, curTag)
@@ -198,4 +218,31 @@ func (f *Filter) Info() string {
 		"\t\tHashtable size: %v KB\n"+
 		"\t\tbit/key:   %v\n",
 		f.table.Info(), f.Size(), f.LoadFactor(), f.table.SizeInBytes()>>10, f.BitsPerItem())
+}
+
+// Encode returns a byte slice representing a Cuckoo filter
+func (f *Filter) Encode() []byte {
+	b := make([]byte, bytesPerUint32)
+	binary.LittleEndian.PutUint32(b, uint32(f.numItems))
+
+	return append(b, f.table.Encode()...)
+}
+
+// Decode returns a Cuckoo Filter from a byte slice
+func Decode(bytes []byte) (*Filter, error) {
+	if len(bytes) < 11 {
+		return nil, errors.New("unexpected bytes length")
+	}
+	numItems := uint(binary.LittleEndian.Uint32(bytes[0:4]))
+	tableType := uint(bytes[4])
+	table := getTable(tableType).(Table)
+	err := table.Decode(bytes[4:])
+	if err != nil {
+		return nil, err
+	}
+	return &Filter{
+		table:       table,
+		numItems:    numItems,
+		bitsPerItem: table.BitsPerItem(),
+	}, nil
 }
