@@ -239,6 +239,12 @@ func (t *SingleTable) NumTagsInBucket(i uint) uint {
 	return num
 }
 
+func (t *SingleTable) Reset() {
+	for i := range t.bucket {
+		t.bucket[i] = 0
+	}
+}
+
 func (t *SingleTable) Info() string {
 	return fmt.Sprintf("SingleHashtable with tag size: %v bits \n"+
 		"\t\tAssociativity: %v \n"+

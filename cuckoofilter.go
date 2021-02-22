@@ -32,6 +32,7 @@ type Table interface {
 	BitsPerItem() uint
 	Encode() []byte
 	Decode([]byte) error
+	Reset()
 }
 
 func getTable(tableType uint) interface{} {
@@ -200,6 +201,12 @@ TryEliminateVictim:
 		f.addImpl(i, tag)
 	}
 	return true
+}
+
+// Reset reset the filter
+func (f *Filter) Reset() {
+	f.table.Reset()
+	f.numItems = 0
 }
 
 func (f *Filter) Info() string {

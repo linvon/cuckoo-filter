@@ -478,6 +478,12 @@ func (p *PackedTable) InsertTagToBucket(i uint, tag uint32, kickOut bool, oldTag
 	return false
 }
 
+func (p *PackedTable) Reset() {
+	for i := range p.buckets {
+		p.buckets[i] = 0
+	}
+}
+
 func (p *PackedTable) Info() string {
 	return fmt.Sprintf("PackedHashtable with tag size: %v bits \n"+
 		"\t\t4 packed bits(3 bits after compression) and %v direct bits\n"+
