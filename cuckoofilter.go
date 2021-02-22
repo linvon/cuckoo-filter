@@ -242,21 +242,35 @@ func (f *Filter) Info() string {
 
 // Encode returns a byte slice representing a Cuckoo filter
 func (f *Filter) Encode() []byte {
-	b := make([]byte, bytesPerUint32)
-	binary.LittleEndian.PutUint32(b, uint32(f.numItems))
+	var b [3][bytesPerUint32]byte
+	binary.LittleEndian.PutUint32(b[0][:], uint32(f.numItems))
+	binary.LittleEndian.PutUint32(b[1][:], uint32(f.victim.index))
+	binary.LittleEndian.PutUint32(b[2][:], f.victim.tag)
 
-	return append(b, f.table.Encode()...)
+	ret := append(b[0][:], b[1][:]...)
+	ret = append(ret, b[2][:]...)
+	if f.victim.used {
+		ret = append(ret, byte(1))
+	} else {
+		ret = append(ret, byte(0))
+	}
+	ret = append(ret, f.table.Encode()...)
+
+	return ret
 }
 
 // Decode returns a Cuckoo Filter from a byte slice
 func Decode(bytes []byte) (*Filter, error) {
-	if len(bytes) < 11 {
+	if len(bytes) < 20 {
 		return nil, errors.New("unexpected bytes length")
 	}
 	numItems := uint(binary.LittleEndian.Uint32(bytes[0:4]))
-	tableType := uint(bytes[4])
+	curIndex := uint(binary.LittleEndian.Uint32(bytes[4:8]))
+	curTag := binary.LittleEndian.Uint32(bytes[8:12])
+	used := bytes[12] == byte(1)
+	tableType := uint(bytes[13])
 	table := getTable(tableType).(Table)
-	err := table.Decode(bytes[4:])
+	err := table.Decode(bytes[13:])
 	if err != nil {
 		return nil, err
 	}
@@ -264,5 +278,10 @@ func Decode(bytes []byte) (*Filter, error) {
 		table:       table,
 		numItems:    numItems,
 		bitsPerItem: table.BitsPerItem(),
+		victim: VictimCache{
+			index: curIndex,
+			tag:   curTag,
+			used:  used,
+		},
 	}, nil
 }
