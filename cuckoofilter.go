@@ -12,14 +12,6 @@ import (
 	"github.com/dgryski/go-metro"
 )
 
-// status returned by a cuckoo filter operation
-const (
-	Ok             = 0
-	NotFound       = 1
-	NotEnoughSpace = 2
-	Existed        = 3
-)
-
 // maximum number of cuckoo kicks before claiming failure
 const kMaxCuckooCount uint = 500
 
@@ -120,25 +112,25 @@ func (f *Filter) BitsPerItem() float64 {
 	return 8.0 * float64(f.table.SizeInBytes()) / float64(f.Size())
 }
 
-func (f *Filter) Add(item []byte) uint {
+func (f *Filter) Add(item []byte) bool {
 	var i uint
 	var tag uint32
 
 	if f.victim.used {
-		return NotEnoughSpace
+		return false
 	}
 	f.generateIndexTagHash(item, &i, &tag)
 	return f.addImpl(i, tag)
 }
 
-func (f *Filter) AddUnique(item []byte) uint {
-	if f.Contain(item) == Ok {
-		return Existed
+func (f *Filter) AddUnique(item []byte) bool {
+	if f.Contain(item) {
+		return false
 	}
 	return f.Add(item)
 }
 
-func (f *Filter) addImpl(i uint, tag uint32) uint {
+func (f *Filter) addImpl(i uint, tag uint32) bool {
 	curIndex := i
 	curTag := tag
 	var oldTag uint32
@@ -149,7 +141,7 @@ func (f *Filter) addImpl(i uint, tag uint32) uint {
 		oldTag = 0
 		if f.table.InsertTagToBucket(curIndex, curTag, kickOut, &oldTag) {
 			f.numItems++
-			return Ok
+			return true
 		}
 		if kickOut {
 			curTag = oldTag
@@ -160,10 +152,10 @@ func (f *Filter) addImpl(i uint, tag uint32) uint {
 	f.victim.index = curIndex
 	f.victim.tag = curTag
 	f.victim.used = true
-	return Ok
+	return true
 }
 
-func (f *Filter) Contain(key []byte) uint {
+func (f *Filter) Contain(key []byte) bool {
 	var found bool
 	var i1, i2 uint
 	var tag uint32
@@ -177,13 +169,13 @@ func (f *Filter) Contain(key []byte) uint {
 	found = f.victim.used && tag == f.victim.tag && (i1 == f.victim.index || i2 == f.victim.index)
 
 	if found || f.table.FindTagInBuckets(i1, i2, tag) {
-		return Ok
+		return true
 	} else {
-		return NotFound
+		return false
 	}
 }
 
-func (f *Filter) Delete(key []byte) uint {
+func (f *Filter) Delete(key []byte) bool {
 	var i1, i2 uint
 	var tag uint32
 
@@ -195,9 +187,9 @@ func (f *Filter) Delete(key []byte) uint {
 		goto TryEliminateVictim
 	} else if f.victim.used && tag == f.victim.tag && (i1 == f.victim.index || i2 == f.victim.index) {
 		f.victim.used = false
-		return Ok
+		return true
 	} else {
-		return NotFound
+		return false
 	}
 
 TryEliminateVictim:
@@ -207,7 +199,7 @@ TryEliminateVictim:
 		tag = f.victim.tag
 		f.addImpl(i, tag)
 	}
-	return Ok
+	return true
 }
 
 func (f *Filter) Info() string {
