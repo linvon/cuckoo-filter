@@ -209,6 +209,27 @@ func (f *Filter) Reset() {
 	f.numItems = 0
 }
 
+// FalsePositiveRate return the False Positive Rate of filter
+// Notice that this will reset filter
+func (f *Filter) FalsePositiveRate() float64 {
+	n1 := make([]byte, 4)
+	f.Reset()
+	n := f.table.SizeInTags()
+	for i := uint32(0); i < uint32(n); i++ {
+		binary.BigEndian.PutUint32(n1, i)
+		f.Add(n1)
+	}
+	var rounds uint32 = 100000
+	fp := 0
+	for i := uint32(0); i < rounds; i++ {
+		binary.BigEndian.PutUint32(n1, i+uint32(n)+1)
+		if f.Contain(n1) {
+			fp++
+		}
+	}
+	return float64(fp) / float64(rounds)
+}
+
 func (f *Filter) Info() string {
 	return fmt.Sprintf("CuckooFilter Status:\n"+
 		"\t\t%v\n"+
