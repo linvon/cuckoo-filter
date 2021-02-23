@@ -207,6 +207,9 @@ TryEliminateVictim:
 func (f *Filter) Reset() {
 	f.table.Reset()
 	f.numItems = 0
+	f.victim.index = 0
+	f.victim.tag = 0
+	f.victim.used = false
 }
 
 // FalsePositiveRate return the False Positive Rate of filter
