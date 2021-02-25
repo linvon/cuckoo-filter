@@ -230,6 +230,7 @@ func (f *Filter) FalsePositiveRate() float64 {
 			fp++
 		}
 	}
+	f.Reset()
 	return float64(fp) / float64(rounds)
 }
 
