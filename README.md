@@ -40,7 +40,7 @@ According to paper
 
  Given a target false positive rate of `r` 
 
-> when  r > 0.002, having two entries per bucket yields slightly better results than using four entries per bucket; when decreases to 0.00001 < r ≤ 0.002, four entries per bucket minimizes space.
+> when  r > 0.002, having two entries per bucket yields slightly better results than using four entries per bucket; when decreases to 0.00001 < r ≤ 0.002, four entries per bucket minimizes space.
 
 with a bucket size `b`, they suggest choosing the fingerprint size `f` using
 
