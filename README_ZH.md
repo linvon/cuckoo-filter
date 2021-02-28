@@ -1,5 +1,5 @@
 # cuckoo-filter
-cuckoo-filter 的 go 实现版本. 可按你的配置来定制
+cuckoo-filter 的 go 实现版本. 可按你的配置来定制过滤器参数
 
 移植于 [efficient/cuckoofilter](https://github.com/efficient/cuckoofilter)
 
