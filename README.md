@@ -1,5 +1,5 @@
 # cuckoo-filter
-cuckoo-filter go implement. Custom by you
+cuckoo-filter go implement. Config by you
 
 transplant from [efficient/cuckoofilter](https://github.com/efficient/cuckoofilter)
 
