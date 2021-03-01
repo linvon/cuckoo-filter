@@ -189,23 +189,10 @@ func (t *SingleTable) FindTagInBuckets(i1, i2 uint, tag uint32) bool {
 	return false
 }
 
-func (t *SingleTable) FindTagInBucket(i uint, tag uint32) bool {
-	var j uint
-	for j = 0; j < t.kTagsPerBucket; j++ {
-		if t.ReadTag(i, j) == tag {
-			return true
-		}
-	}
-	return false
-}
-
 func (t *SingleTable) DeleteTagFromBucket(i uint, tag uint32) bool {
 	var j uint
 	for j = 0; j < t.kTagsPerBucket; j++ {
 		if t.ReadTag(i, j) == tag {
-			if t.FindTagInBucket(i, tag) != true {
-				panic("not exist")
-			}
 			t.WriteTag(i, j, 0)
 			return true
 		}
@@ -227,16 +214,6 @@ func (t *SingleTable) InsertTagToBucket(i uint, tag uint32, kickOut bool, oldTag
 		t.WriteTag(i, r, tag)
 	}
 	return false
-}
-
-func (t *SingleTable) NumTagsInBucket(i uint) uint {
-	var j, num uint
-	for j = 0; j < t.kTagsPerBucket; j++ {
-		if t.ReadTag(i, j) != 0 {
-			num++
-		}
-	}
-	return num
 }
 
 func (t *SingleTable) Reset() {

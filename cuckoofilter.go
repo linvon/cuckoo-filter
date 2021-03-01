@@ -44,14 +44,14 @@ func getTable(tableType uint) interface{} {
 	}
 }
 
-type VictimCache struct {
+type victimCache struct {
 	index uint
 	tag   uint32
 	used  bool
 }
 
 type Filter struct {
-	victim      VictimCache
+	victim      victimCache
 	numItems    uint
 	table       Table
 	bitsPerItem uint
@@ -100,7 +100,11 @@ func (f *Filter) altIndex(index uint, tag uint32) uint {
 }
 
 func (f *Filter) Size() uint {
-	return f.numItems
+	var c uint
+	if f.victim.used {
+		c = 1
+	}
+	return f.numItems + c
 }
 func (f *Filter) LoadFactor() float64 {
 	return 1.0 * float64(f.Size()) / float64(f.table.SizeInTags())
@@ -164,9 +168,6 @@ func (f *Filter) Contain(key []byte) bool {
 	f.generateIndexTagHash(key, &i1, &tag)
 	i2 = f.altIndex(i1, tag)
 
-	if i1 != f.altIndex(i2, tag) {
-		panic("hash err")
-	}
 	found = f.victim.used && tag == f.victim.tag && (i1 == f.victim.index || i2 == f.victim.index)
 
 	if found || f.table.FindTagInBuckets(i1, i2, tag) {
@@ -282,7 +283,7 @@ func Decode(bytes []byte) (*Filter, error) {
 		table:       table,
 		numItems:    numItems,
 		bitsPerItem: table.BitsPerItem(),
-		victim: VictimCache{
+		victim: victimCache{
 			index: curIndex,
 			tag:   curTag,
 			used:  used,

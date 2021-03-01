@@ -7,10 +7,7 @@ package cuckoo
 
 import (
 	"encoding/binary"
-	"fmt"
 )
-
-const DEBUG = false
 
 type PermEncoding struct {
 	nEnts    uint
@@ -49,14 +46,12 @@ func (p *PermEncoding) Decode(codeword uint16, lowBits *[tagsPerPTable]uint8) {
 	p.unpack(p.DecTable[codeword], lowBits)
 }
 func (p *PermEncoding) Encode(lowBits [tagsPerPTable]uint8) uint16 {
-	if DEBUG {
-		fmt.Printf("Perm.encode\n")
-		for i := 0; i < tagsPerPTable; i++ {
-			fmt.Printf("encode lowBits[%d]=%x\n", i, lowBits[i])
-		}
-		fmt.Printf("pack(lowBits) = %x\n", p.pack(lowBits))
-		fmt.Printf("enc_table[%x]=%x\n", p.pack(lowBits), p.EncTable[p.pack(lowBits)])
-	}
+	//fmt.Printf("Perm.encode\n")
+	//for i := 0; i < tagsPerPTable; i++ {
+	//	fmt.Printf("encode lowBits[%d]=%x\n", i, lowBits[i])
+	//}
+	//fmt.Printf("pack(lowBits) = %x\n", p.pack(lowBits))
+	//fmt.Printf("enc_table[%x]=%x\n", p.pack(lowBits), p.EncTable[p.pack(lowBits)])
 	return p.EncTable[p.pack(lowBits)]
 }
 
@@ -69,10 +64,8 @@ func (p *PermEncoding) genTables(base, k int, dst [tagsPerPTable]uint8, idx *uin
 		} else {
 			p.DecTable[*idx] = p.pack(dst)
 			p.EncTable[p.pack(dst)] = *idx
-			if DEBUG {
-				fmt.Printf("enc_table[%04x]=%04x\t%x %x %x %x\n", p.pack(dst), *idx, dst[0],
-					dst[1], dst[2], dst[3])
-			}
+			//fmt.Printf("enc_table[%04x]=%04x\t%x %x %x %x\n", p.pack(dst), *idx, dst[0],
+			//	dst[1], dst[2], dst[3])
 			*idx++
 		}
 	}

@@ -439,12 +439,6 @@ func (p *PackedTable) FindTagInBuckets(i1, i2 uint, tag uint32) bool {
 		(tags1[3] == tag) || (tags2[0] == tag) || (tags2[1] == tag) ||
 		(tags2[2] == tag) || (tags2[3] == tag)
 }
-func (p *PackedTable) FindTagInBucket(i uint, tag uint32) bool {
-	var tags [tagsPerPTable]uint32
-	p.ReadBucket(i, &tags)
-
-	return (tags[0] == tag) || (tags[1] == tag) || (tags[2] == tag) || (tags[3] == tag)
-}
 
 func (p *PackedTable) DeleteTagFromBucket(i uint, tag uint32) bool {
 	var tags [tagsPerPTable]uint32
