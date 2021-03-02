@@ -172,7 +172,7 @@ func (f *Filter) addImpl(i uint, tag uint32) bool {
 	return true
 }
 
-//Contain return if filter contains an item 
+//Contain return if filter contains an item
 func (f *Filter) Contain(key []byte) bool {
 	var found bool
 	var i1, i2 uint

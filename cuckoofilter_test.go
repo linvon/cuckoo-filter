@@ -45,7 +45,7 @@ func TestFilter(t *testing.T) {
 				}
 
 				count := cf.Size()
-				
+
 				if count != uint(len(a)) {
 					t.Errorf("Expected count = %d, instead count = %d, b %v f %v", uint(len(a)), count, b, f)
 				}
