@@ -73,22 +73,27 @@ func (t *SingleTable) ReadTag(i, j uint) uint32 {
 	case 32:
 		tag = binary.LittleEndian.Uint32([]byte{t.bucket[pos], t.bucket[pos+1], t.bucket[pos+2], t.bucket[pos+3]})
 	default:
-		rShift := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) & (bitsPerByte - 1)
-		kBytes := int((rShift + t.bitsPerTag + 7) / bitsPerByte)
-		// tag is max 32bit, so max occupies 5 bytes
-		b := make([]byte, bytesPerUint64)
-		for k := 0; k < bytesPerUint64; k++ {
-			if k+1 <= kBytes {
-				b[k] = t.bucket[pos+k]
-			} else {
-				b[k] = 0
-			}
-		}
-		tmp := binary.LittleEndian.Uint64(b)
-		tmp >>= rShift
+		tmp := t.readOutUint64(i, j, pos)
 		tag = uint32(tmp)
 	}
 	return tag & t.tagMask
+}
+
+func (t *SingleTable) readOutUint64(i, j uint, pos int) uint64 {
+	rShift := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) & (bitsPerByte - 1)
+	kBytes := int((rShift + t.bitsPerTag + 7) / bitsPerByte)
+	// tag is max 32bit, so max occupies 5 bytes
+	b := make([]byte, bytesPerUint64)
+	for k := 0; k < bytesPerUint64; k++ {
+		if k+1 <= kBytes {
+			b[k] = t.bucket[pos+k]
+		} else {
+			b[k] = 0
+		}
+	}
+	tmp := binary.LittleEndian.Uint64(b)
+	tmp >>= rShift
+	return tmp
 }
 
 // write tag to pos(i,j)
@@ -138,37 +143,7 @@ func (t *SingleTable) WriteTag(i, j uint, n uint32) {
 		t.bucket[pos+2] = b[2]
 		t.bucket[pos+3] = b[3]
 	default:
-		rShift := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) & (bitsPerByte - 1)
-		kBytes := int((rShift + t.bitsPerTag + 7) / bitsPerByte)
-		lShift := (rShift + t.bitsPerTag) & (bitsPerByte - 1)
-		// tag is max 32bit, so max occupies 5 bytes
-		b := make([]byte, bytesPerUint64)
-		for k := 0; k < bytesPerUint64; k++ {
-			if pos+k >= int(t.len) {
-				b[k] = 0
-			} else {
-				b[k] = t.bucket[pos+k]
-			}
-		}
-		rMask := uint8(0xff) >> (bitsPerByte - rShift)
-		lMask := uint8(0xff) << lShift
-		if lShift == 0 {
-			lMask = uint8(0)
-		}
-		if kBytes == 1 {
-			mask := lMask | rMask
-			b[0] &= mask
-		} else {
-			b[0] &= rMask
-			for k := 1; k < kBytes-1; k++ {
-				b[k] = 0
-			}
-			b[kBytes-1] &= lMask
-		}
-		tmp := binary.LittleEndian.Uint64(b)
-		tmp |= uint64(tag) << rShift
-		binary.LittleEndian.PutUint64(b, tmp)
-
+		b := t.writeInByte(i, j, pos, tag)
 		for k := 0; k < bytesPerUint64; k++ {
 			if pos+k >= int(t.len) {
 				break
@@ -177,6 +152,40 @@ func (t *SingleTable) WriteTag(i, j uint, n uint32) {
 			}
 		}
 	}
+}
+
+func (t *SingleTable) writeInByte(i, j uint, pos int, tag uint32) []byte {
+	rShift := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) & (bitsPerByte - 1)
+	kBytes := int((rShift + t.bitsPerTag + 7) / bitsPerByte)
+	lShift := (rShift + t.bitsPerTag) & (bitsPerByte - 1)
+	// tag is max 32bit, so max occupies 5 bytes
+	b := make([]byte, bytesPerUint64)
+	for k := 0; k < bytesPerUint64; k++ {
+		if pos+k >= int(t.len) {
+			b[k] = 0
+		} else {
+			b[k] = t.bucket[pos+k]
+		}
+	}
+	rMask := uint8(0xff) >> (bitsPerByte - rShift)
+	lMask := uint8(0xff) << lShift
+	if lShift == 0 {
+		lMask = uint8(0)
+	}
+	if kBytes == 1 {
+		mask := lMask | rMask
+		b[0] &= mask
+	} else {
+		b[0] &= rMask
+		for k := 1; k < kBytes-1; k++ {
+			b[k] = 0
+		}
+		b[kBytes-1] &= lMask
+	}
+	tmp := binary.LittleEndian.Uint64(b)
+	tmp |= uint64(tag) << rShift
+	binary.LittleEndian.PutUint64(b, tmp)
+	return b
 }
 
 func (t *SingleTable) FindTagInBuckets(i1, i2 uint, tag uint32) bool {

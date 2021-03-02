@@ -45,6 +45,7 @@ func TestFilter(t *testing.T) {
 				}
 
 				count := cf.Size()
+				
 				if count != uint(len(a)) {
 					t.Errorf("Expected count = %d, instead count = %d, b %v f %v", uint(len(a)), count, b, f)
 				}
@@ -53,9 +54,6 @@ func TestFilter(t *testing.T) {
 					if !cf.Contain(v) {
 						t.Errorf("Expected contain, instead not contain")
 					}
-				}
-
-				for _, v := range a {
 					cf.Delete(v)
 				}
 
@@ -66,11 +64,8 @@ func TestFilter(t *testing.T) {
 
 				bytes := cf.Encode()
 				ncf, err := Decode(bytes)
-				if err != nil {
-					t.Errorf("Expected no error, got %v", err)
-				}
-				if !reflect.DeepEqual(cf, ncf) {
-					t.Errorf("Expected %v, got %v", cf, ncf)
+				if err != nil || !reflect.DeepEqual(cf, ncf) {
+					t.Errorf("Expected epual, err %v", err)
 				}
 
 				cf.Info()
