@@ -208,21 +208,12 @@ func (p *PackedTable) readOutUint64(i, pos uint) (uint64, uint64, uint) {
 	b2 := make([]byte, bytesPerUint64)
 
 	for k := uint(0); k < bytesPerUint64; k++ {
-		if pos+k < p.len {
-			b1[k] = p.buckets[pos+k]
-		} else {
-			b1[k] = 0
+		b1[k] = p.buckets[pos+k]
+		if kBytes > bytesPerUint64 {
+			b2[k] = p.buckets[pos+bytesPerUint64+k]
 		}
 	}
-	if kBytes > bytesPerUint64 {
-		for k := uint(0); k < bytesPerUint64; k++ {
-			if pos+bytesPerUint64+k < p.len {
-				b2[k] = p.buckets[pos+bytesPerUint64+k]
-			} else {
-				b2[k] = 0
-			}
-		}
-	}
+
 	u1 := binary.LittleEndian.Uint64(b1)
 	u2 := binary.LittleEndian.Uint64(b2)
 	return u1, u2, rShift
@@ -359,21 +350,12 @@ func (p *PackedTable) WriteBucket(i uint, tags [tagsPerPTable]uint32) {
 	default:
 		b1, b2, useTwo := p.writeInByte(i, pos, codeword, highBits)
 		for k := uint(0); k < bytesPerUint64; k++ {
-			if pos+k < p.len {
-				p.buckets[pos+k] = b1[k]
-			} else {
-				break
+			p.buckets[pos+k] = b1[k]
+			if useTwo {
+				p.buckets[pos+bytesPerUint64+k] = b2[k]
 			}
 		}
-		if useTwo {
-			for k := uint(0); k < bytesPerUint64; k++ {
-				if pos+bytesPerUint64+k < p.len {
-					p.buckets[pos+bytesPerUint64+k] = b2[k]
-				} else {
-					break
-				}
-			}
-		}
+
 	}
 
 }
@@ -387,19 +369,9 @@ func (p *PackedTable) writeInByte(i, pos uint, codeword uint16, highBits [tagsPe
 	b1 := make([]byte, bytesPerUint64)
 	b2 := make([]byte, bytesPerUint64)
 	for k := uint(0); k < bytesPerUint64; k++ {
-		if pos+k < p.len {
-			b1[k] = p.buckets[pos+k]
-		} else {
-			b1[k] = 0
-		}
-	}
-	if useTwo {
-		for k := uint(0); k < bytesPerUint64; k++ {
-			if pos+bytesPerUint64+k < p.len {
-				b2[k] = p.buckets[pos+bytesPerUint64+k]
-			} else {
-				b2[k] = 0
-			}
+		b1[k] = p.buckets[pos+k]
+		if useTwo {
+			b2[k] = p.buckets[pos+bytesPerUint64+k]
 		}
 	}
 

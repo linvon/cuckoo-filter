@@ -16,7 +16,7 @@ import (
 const size = 100000
 
 var testBucketSize = []uint{2, 4, 8}
-var testFingerprintSize = []uint{2, 4, 5, 6, 7, 8, 9, 10, 12, 13, 16, 17, 32}
+var testFingerprintSize = []uint{2, 4, 5, 6, 7, 8, 9, 10, 12, 13, 16, 17, 23, 31, 32}
 var testTableType = []uint{TableTypeSingle, TableTypePacked}
 
 func TestFilter(t *testing.T) {
