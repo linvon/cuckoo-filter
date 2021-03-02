@@ -22,10 +22,12 @@ type SingleTable struct {
 	len            uint
 }
 
+//NewPackedTable return a singleTable
 func NewSingleTable() *SingleTable {
 	return &SingleTable{}
 }
 
+//Init init table
 func (t *SingleTable) Init(tagsPerBucket, bitsPerTag, num uint) {
 	t.bitsPerTag = bitsPerTag
 	t.numBuckets = num
@@ -37,23 +39,27 @@ func (t *SingleTable) Init(tagsPerBucket, bitsPerTag, num uint) {
 	t.bucket = make([]byte, t.len)
 }
 
+//NumBuckets return num of table buckets
 func (t *SingleTable) NumBuckets() uint {
 	return t.numBuckets
 }
 
+//SizeInBytes return bytes occupancy of table
 func (t *SingleTable) SizeInBytes() uint {
 	return t.len
 }
 
+//SizeInTags return num of tags that table can store
 func (t *SingleTable) SizeInTags() uint {
 	return t.kTagsPerBucket * t.numBuckets
 }
 
+//BitsPerItem return bits occupancy per item of table
 func (t *SingleTable) BitsPerItem() uint {
 	return t.bitsPerTag
 }
 
-// read tag from pos(i,j)
+//ReadTag read tag from bucket(i,j)
 func (t *SingleTable) ReadTag(i, j uint) uint32 {
 	pos := int(i*t.bitsPerTag*t.kTagsPerBucket+t.bitsPerTag*j) / bitsPerByte
 	var tag uint32
@@ -96,7 +102,7 @@ func (t *SingleTable) readOutUint64(i, j uint, pos int) uint64 {
 	return tmp
 }
 
-// write tag to pos(i,j)
+//WriteTag write tag into bucket(i,j)
 func (t *SingleTable) WriteTag(i, j uint, n uint32) {
 	pos := int(i*t.bitsPerTag*t.kTagsPerBucket+t.bitsPerTag*j) / bitsPerByte
 	var tag = n & t.tagMask
@@ -188,6 +194,7 @@ func (t *SingleTable) writeInByte(i, j uint, pos int, tag uint32) []byte {
 	return b
 }
 
+//FindTagInBuckets find if tag in bucket i1 i2
 func (t *SingleTable) FindTagInBuckets(i1, i2 uint, tag uint32) bool {
 	var j uint
 	for j = 0; j < t.kTagsPerBucket; j++ {
@@ -198,6 +205,7 @@ func (t *SingleTable) FindTagInBuckets(i1, i2 uint, tag uint32) bool {
 	return false
 }
 
+//DeleteTagFromBucket delete tag from bucket i
 func (t *SingleTable) DeleteTagFromBucket(i uint, tag uint32) bool {
 	var j uint
 	for j = 0; j < t.kTagsPerBucket; j++ {
@@ -209,6 +217,7 @@ func (t *SingleTable) DeleteTagFromBucket(i uint, tag uint32) bool {
 	return false
 }
 
+//InsertTagToBucket insert tag into bucket i
 func (t *SingleTable) InsertTagToBucket(i uint, tag uint32, kickOut bool, oldTag *uint32) bool {
 	var j uint
 	for j = 0; j < t.kTagsPerBucket; j++ {
@@ -225,12 +234,14 @@ func (t *SingleTable) InsertTagToBucket(i uint, tag uint32, kickOut bool, oldTag
 	return false
 }
 
+//Reset reset table
 func (t *SingleTable) Reset() {
 	for i := range t.bucket {
 		t.bucket[i] = 0
 	}
 }
 
+//Info return table's info
 func (t *SingleTable) Info() string {
 	return fmt.Sprintf("SingleHashtable with tag size: %v bits \n"+
 		"\t\tAssociativity: %v \n"+

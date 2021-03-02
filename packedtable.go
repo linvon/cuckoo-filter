@@ -26,6 +26,7 @@ type PackedTable struct {
 	perm       PermEncoding
 }
 
+//NewPackedTable return a packedTable
 func NewPackedTable() *PackedTable {
 	return &PackedTable{}
 }
@@ -36,6 +37,7 @@ const (
 	codeSize      = 12
 )
 
+//Init init table
 func (p *PackedTable) Init(_, bitsPerTag, num uint) {
 	p.bitsPerTag = bitsPerTag
 	p.numBuckets = num
@@ -50,22 +52,27 @@ func (p *PackedTable) Init(_, bitsPerTag, num uint) {
 	p.perm.Init()
 }
 
+//NumBuckets return num of table buckets
 func (p *PackedTable) NumBuckets() uint {
 	return p.numBuckets
 }
 
+//SizeInTags return num of tags that table can store
 func (p *PackedTable) SizeInTags() uint {
 	return tagsPerPTable * p.numBuckets
 }
 
+//SizeInBytes return bytes occupancy of table
 func (p *PackedTable) SizeInBytes() uint {
 	return p.len
 }
 
+//BitsPerItem return bits occupancy per item of table
 func (p *PackedTable) BitsPerItem() uint {
 	return p.bitsPerTag
 }
 
+//PrintBucket print a bucket
 func (p *PackedTable) PrintBucket(i uint) {
 	pos := p.kBitsPerBucket * i / bitsPerByte
 	fmt.Printf("\tbucketBits  =%x\n", p.buckets[pos:pos+p.kBytesPerBucket])
@@ -74,6 +81,7 @@ func (p *PackedTable) PrintBucket(i uint) {
 	p.PrintTags(tags)
 }
 
+//PrintTags print tags
 func (p *PackedTable) PrintTags(tags [tagsPerPTable]uint32) {
 	var lowBits [tagsPerPTable]uint8
 	var dirBits [tagsPerPTable]uint32
@@ -102,9 +110,8 @@ func (p *PackedTable) sortTags(tags *[tagsPerPTable]uint32) {
 	p.sortPair(&tags[1], &tags[2])
 }
 
-/* read and decode the bucket i, pass the 4 decoded tags to the 2nd arg
- * bucket bits = 12 codeword bits + dir bits of tag1 + dir bits of tag2 ...
- */
+//ReadBucket read and decode the bucket i, pass the 4 decoded tags to the 2nd arg
+// bucket bits = 12 codeword bits + dir bits of tag1 + dir bits of tag2 ...
 func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
 	var codeword uint16
 	var lowBits [tagsPerPTable]uint8
@@ -221,9 +228,7 @@ func (p *PackedTable) readOutUint64(i, pos uint) (uint64, uint64, uint) {
 	return u1, u2, rShift
 }
 
-/* Tag = 4 low bits + x high bits
- * L L L L H H H H ...
- */
+//WriteBucket write tags into bucket i
 func (p *PackedTable) WriteBucket(i uint, tags [tagsPerPTable]uint32) {
 	p.sortTags(&tags)
 
@@ -440,6 +445,7 @@ func (p *PackedTable) writeInByte(i, pos uint, codeword uint16, highBits [tagsPe
 	return b1, b2, useTwo
 }
 
+//FindTagInBuckets find if tag in bucket i1 i2
 func (p *PackedTable) FindTagInBuckets(i1, i2 uint, tag uint32) bool {
 	var tags1, tags2 [tagsPerPTable]uint32
 	p.ReadBucket(i1, &tags1)
@@ -450,6 +456,7 @@ func (p *PackedTable) FindTagInBuckets(i1, i2 uint, tag uint32) bool {
 		(tags2[2] == tag) || (tags2[3] == tag)
 }
 
+//DeleteTagFromBucket delete tag from bucket i
 func (p *PackedTable) DeleteTagFromBucket(i uint, tag uint32) bool {
 	var tags [tagsPerPTable]uint32
 	p.ReadBucket(i, &tags)
@@ -463,6 +470,7 @@ func (p *PackedTable) DeleteTagFromBucket(i uint, tag uint32) bool {
 	return false
 }
 
+//InsertTagToBucket insert tag into bucket i
 func (p *PackedTable) InsertTagToBucket(i uint, tag uint32, kickOut bool, oldTag *uint32) bool {
 	var tags [tagsPerPTable]uint32
 	p.ReadBucket(i, &tags)
@@ -482,12 +490,14 @@ func (p *PackedTable) InsertTagToBucket(i uint, tag uint32, kickOut bool, oldTag
 	return false
 }
 
+//Reset reset table
 func (p *PackedTable) Reset() {
 	for i := range p.buckets {
 		p.buckets[i] = 0
 	}
 }
 
+//Info return table's info
 func (p *PackedTable) Info() string {
 	return fmt.Sprintf("PackedHashtable with tag size: %v bits \n"+
 		"\t\t4 packed bits(3 bits after compression) and %v direct bits\n"+

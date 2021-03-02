@@ -16,11 +16,13 @@ import (
 const kMaxCuckooCount uint = 500
 
 const (
+	//TableTypeSingle normal single table
 	TableTypeSingle = 0
+	//TableTypePacked packed table, use semi-sort to save 1 bit per item
 	TableTypePacked = 1
 )
 
-type Table interface {
+type table interface {
 	Init(tagsPerBucket, bitsPerTag, num uint)
 	NumBuckets() uint
 	FindTagInBuckets(i1, i2 uint, tag uint32) bool
@@ -50,10 +52,11 @@ type victimCache struct {
 	used  bool
 }
 
+//Filter cuckoo filter type struct
 type Filter struct {
 	victim      victimCache
 	numItems    uint
-	table       Table
+	table       table
 	bitsPerItem uint
 }
 
@@ -63,6 +66,7 @@ type Filter struct {
 	maxNumKeys: num of keys that filter will store. this value should close to and lower
 				nextPow2(maxNumKeys/tagsPerBucket) * maxLoadFactor. cause table.NumBuckets is always a power of two
 */
+//NewFilter return a new initialized filter
 func NewFilter(tagsPerBucket, bitsPerItem, maxNumKeys, tableType uint) *Filter {
 	numBuckets := getNextPow2(uint64(maxNumKeys / tagsPerBucket))
 	if float64(maxNumKeys)/float64(numBuckets*tagsPerBucket) > maxLoadFactor(tagsPerBucket) {
@@ -71,7 +75,7 @@ func NewFilter(tagsPerBucket, bitsPerItem, maxNumKeys, tableType uint) *Filter {
 	if numBuckets == 0 {
 		numBuckets = 1
 	}
-	table := getTable(tableType).(Table)
+	table := getTable(tableType).(table)
 	table.Init(tagsPerBucket, bitsPerItem, numBuckets)
 	return &Filter{
 		table:       table,
@@ -99,6 +103,7 @@ func (f *Filter) altIndex(index uint, tag uint32) uint {
 	return f.indexHash(uint32(index) ^ (tag * 0x5bd1e995))
 }
 
+//Size return num of items that filter store
 func (f *Filter) Size() uint {
 	var c uint
 	if f.victim.used {
@@ -106,17 +111,23 @@ func (f *Filter) Size() uint {
 	}
 	return f.numItems + c
 }
+
+//LoadFactor return current filter's loadFactor
 func (f *Filter) LoadFactor() float64 {
 	return 1.0 * float64(f.Size()) / float64(f.table.SizeInTags())
 }
+
+//SizeInBytes return bytes occupancy of filter's table
 func (f *Filter) SizeInBytes() uint {
 	return f.table.SizeInBytes()
 }
 
+//BitsPerItem return bits occupancy per item of filter's table
 func (f *Filter) BitsPerItem() float64 {
 	return 8.0 * float64(f.table.SizeInBytes()) / float64(f.Size())
 }
 
+//Add add an item into filter, return false when filter is full
 func (f *Filter) Add(item []byte) bool {
 	var i uint
 	var tag uint32
@@ -128,6 +139,7 @@ func (f *Filter) Add(item []byte) bool {
 	return f.addImpl(i, tag)
 }
 
+//AddUnique add an item into filter, return false when filter already contains it or filter is full
 func (f *Filter) AddUnique(item []byte) bool {
 	if f.Contain(item) {
 		return false
@@ -160,6 +172,7 @@ func (f *Filter) addImpl(i uint, tag uint32) bool {
 	return true
 }
 
+//Contain return if filter contains an item 
 func (f *Filter) Contain(key []byte) bool {
 	var found bool
 	var i1, i2 uint
@@ -177,6 +190,7 @@ func (f *Filter) Contain(key []byte) bool {
 	}
 }
 
+//Delete delete item from filter, return false when item not exist
 func (f *Filter) Delete(key []byte) bool {
 	var i1, i2 uint
 	var tag uint32
@@ -235,6 +249,7 @@ func (f *Filter) FalsePositiveRate() float64 {
 	return float64(fp) / float64(rounds)
 }
 
+//Info return filter's detail info
 func (f *Filter) Info() string {
 	return fmt.Sprintf("CuckooFilter Status:\n"+
 		"\t\t%v\n"+
@@ -274,7 +289,7 @@ func Decode(bytes []byte) (*Filter, error) {
 	curTag := binary.LittleEndian.Uint32(bytes[8:12])
 	used := bytes[12] == byte(1)
 	tableType := uint(bytes[13])
-	table := getTable(tableType).(Table)
+	table := getTable(tableType).(table)
 	err := table.Decode(bytes[13:])
 	if err != nil {
 		return nil, err

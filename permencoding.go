@@ -15,6 +15,7 @@ type PermEncoding struct {
 	EncTable []uint16
 }
 
+//Init init permutation table
 func (p *PermEncoding) Init() {
 	p.nEnts = 3876
 	p.DecTable = make([]uint16, p.nEnts)
@@ -42,9 +43,12 @@ func (p *PermEncoding) pack(in [tagsPerPTable]uint8) uint16 {
 	return in1 | in2
 }
 
+//Decode decode codeword to lowBits
 func (p *PermEncoding) Decode(codeword uint16, lowBits *[tagsPerPTable]uint8) {
 	p.unpack(p.DecTable[codeword], lowBits)
 }
+
+//Encode encode lowBits to codeword
 func (p *PermEncoding) Encode(lowBits [tagsPerPTable]uint8) uint16 {
 	//fmt.Printf("Perm.encode\n")
 	//for i := 0; i < tagsPerPTable; i++ {
