@@ -60,13 +60,13 @@ type Filter struct {
 	bitsPerItem uint
 }
 
+//NewFilter return a new initialized filter
 /*
 	tagsPerBucket: num of tags for each bucket, which is b in paper. tag is fingerprint, which is f in paper.
 	bitPerItem: num of bits for each item, which is length of tag(fingerprint)
 	maxNumKeys: num of keys that filter will store. this value should close to and lower
 				nextPow2(maxNumKeys/tagsPerBucket) * maxLoadFactor. cause table.NumBuckets is always a power of two
 */
-//NewFilter return a new initialized filter
 func NewFilter(tagsPerBucket, bitsPerItem, maxNumKeys, tableType uint) *Filter {
 	numBuckets := getNextPow2(uint64(maxNumKeys / tagsPerBucket))
 	if float64(maxNumKeys)/float64(numBuckets*tagsPerBucket) > maxLoadFactor(tagsPerBucket) {
@@ -185,9 +185,8 @@ func (f *Filter) Contain(key []byte) bool {
 
 	if found || f.table.FindTagInBuckets(i1, i2, tag) {
 		return true
-	} else {
-		return false
 	}
+	return false
 }
 
 //Delete delete item from filter, return false when item not exist

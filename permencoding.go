@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 )
 
+//PermEncoding permutation table
 type PermEncoding struct {
 	nEnts    uint
 	DecTable []uint16

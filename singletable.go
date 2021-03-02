@@ -12,7 +12,7 @@ import (
 	"math/rand"
 )
 
-// the most naive table implementation: one huge bit array
+//SingleTable the most naive table implementation: one huge bit array
 type SingleTable struct {
 	kTagsPerBucket uint
 	numBuckets     uint
@@ -22,7 +22,7 @@ type SingleTable struct {
 	len            uint
 }
 
-//NewPackedTable return a singleTable
+//NewSingleTable return a singleTable
 func NewSingleTable() *SingleTable {
 	return &SingleTable{}
 }

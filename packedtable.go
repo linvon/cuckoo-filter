@@ -12,7 +12,7 @@ import (
 	"math/rand"
 )
 
-// Using Permutation encoding to save 1 bit per tag
+//PackedTable using Permutation encoding to save 1 bit per tag
 type PackedTable struct {
 	kDirBitsPerTag  uint
 	kBitsPerBucket  uint
