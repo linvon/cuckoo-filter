@@ -15,7 +15,12 @@ cuckoo-filter 的 go 实现版本. 可按你的配置来定制过滤器参数
 
 ["Cuckoo Filter: Practically Better Than Bloom"](http://www.cs.cmu.edu/~binfan/papers/conext14_cuckoofilter.pdf) in proceedings of ACM CoNEXT 2014 by Bin Fan, Dave Andersen and Michael Kaminsky
 
+[中文翻译版论文](http://www.linvon.cn/posts/cuckoo/)
+
+
 ## 实现细节
+
+本库的具体实现细节以及使用方法可以参考  [布谷鸟过滤器实战指南](http://www.linvon.cn/posts/%E5%B8%83%E8%B0%B7%E9%B8%9F%E8%BF%87%E6%BB%A4%E5%99%A8%E5%AE%9E%E6%88%98%E6%8C%87%E5%8D%97/)
 
 上述的论文提供了几个参数供选择 
 
