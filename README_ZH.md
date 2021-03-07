@@ -1,4 +1,6 @@
 # cuckoo-filter
+[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)  
+
 cuckoo-filter 的 go 实现版本. 可按你的配置来定制过滤器参数
 
 移植于 [efficient/cuckoofilter](https://github.com/efficient/cuckoofilter)
