@@ -119,7 +119,7 @@ func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
 	switch p.bitsPerTag {
 	case 5:
 		// 1 dirBits per tag, 16 bits per bucket
-		bucketBits := binary.LittleEndian.Uint16([]byte{p.buckets[pos], p.buckets[pos+1]})
+		bucketBits := uint16(p.buckets[pos]) | uint16(p.buckets[pos+1])<<8
 		codeword = bucketBits & 0x0fff
 		tags[0] = uint32(bucketBits>>8) & p.kDirBitsMask
 		tags[1] = uint32(bucketBits>>9) & p.kDirBitsMask
@@ -127,7 +127,7 @@ func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
 		tags[3] = uint32(bucketBits>>11) & p.kDirBitsMask
 	case 6:
 		// 2 dirBits per tag, 20 bits per bucket
-		bucketBits := binary.LittleEndian.Uint32([]byte{p.buckets[pos], p.buckets[pos+1], p.buckets[pos+2], p.buckets[pos+3]})
+		bucketBits := uint32(p.buckets[pos]) | uint32(p.buckets[pos+1])<<8 | uint32(p.buckets[pos+2])<<16 | uint32(p.buckets[pos+3])<<24
 		codeword = uint16(bucketBits) >> ((i & 1) << 2) & 0x0fff
 		tags[0] = (bucketBits >> (8 + ((i & 1) << 2))) & p.kDirBitsMask
 		tags[1] = (bucketBits >> (10 + ((i & 1) << 2))) & p.kDirBitsMask
@@ -135,7 +135,7 @@ func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
 		tags[3] = (bucketBits >> (14 + ((i & 1) << 2))) & p.kDirBitsMask
 	case 7:
 		// 3 dirBits per tag, 24 bits per bucket
-		bucketBits := binary.LittleEndian.Uint32([]byte{p.buckets[pos], p.buckets[pos+1], p.buckets[pos+2], p.buckets[pos+3]})
+		bucketBits := uint32(p.buckets[pos]) | uint32(p.buckets[pos+1])<<8 | uint32(p.buckets[pos+2])<<16 | uint32(p.buckets[pos+3])<<24
 		codeword = uint16(bucketBits) & 0x0fff
 		tags[0] = (bucketBits >> 8) & p.kDirBitsMask
 		tags[1] = (bucketBits >> 11) & p.kDirBitsMask
@@ -143,7 +143,7 @@ func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
 		tags[3] = (bucketBits >> 17) & p.kDirBitsMask
 	case 8:
 		// 4 dirBits per tag, 28 bits per bucket
-		bucketBits := binary.LittleEndian.Uint32([]byte{p.buckets[pos], p.buckets[pos+1], p.buckets[pos+2], p.buckets[pos+3]})
+		bucketBits := uint32(p.buckets[pos]) | uint32(p.buckets[pos+1])<<8 | uint32(p.buckets[pos+2])<<16 | uint32(p.buckets[pos+3])<<24
 		codeword = uint16(bucketBits) >> ((i & 1) << 2) & 0x0fff
 		tags[0] = (bucketBits >> (8 + ((i & 1) << 2))) & p.kDirBitsMask
 		tags[1] = (bucketBits >> (12 + ((i & 1) << 2))) & p.kDirBitsMask
@@ -151,7 +151,7 @@ func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
 		tags[3] = (bucketBits >> (20 + ((i & 1) << 2))) & p.kDirBitsMask
 	case 9:
 		// 5 dirBits per tag, 32 bits per bucket
-		bucketBits := binary.LittleEndian.Uint32([]byte{p.buckets[pos], p.buckets[pos+1], p.buckets[pos+2], p.buckets[pos+3]})
+		bucketBits := uint32(p.buckets[pos]) | uint32(p.buckets[pos+1])<<8 | uint32(p.buckets[pos+2])<<16 | uint32(p.buckets[pos+3])<<24
 		codeword = uint16(bucketBits) & 0x0fff
 		tags[0] = (bucketBits >> 8) & p.kDirBitsMask
 		tags[1] = (bucketBits >> 13) & p.kDirBitsMask
@@ -159,8 +159,8 @@ func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
 		tags[3] = (bucketBits >> 23) & p.kDirBitsMask
 	case 13:
 		// 9 dirBits per tag,  48 bits per bucket
-		bucketBits := binary.LittleEndian.Uint64([]byte{p.buckets[pos], p.buckets[pos+1], p.buckets[pos+2], p.buckets[pos+3],
-			p.buckets[pos+4], p.buckets[pos+5], p.buckets[pos+6], p.buckets[pos+7]})
+		bucketBits := uint64(p.buckets[pos]) | uint64(p.buckets[pos+1])<<8 | uint64(p.buckets[pos+2])<<16 | uint64(p.buckets[pos+3])<<24 |
+			uint64(p.buckets[pos+4])<<32 | uint64(p.buckets[pos+5])<<40 | uint64(p.buckets[pos+6])<<48 | uint64(p.buckets[pos+7])<<56
 		codeword = uint16(bucketBits) & 0x0fff
 		tags[0] = uint32((bucketBits)>>8) & p.kDirBitsMask
 		tags[1] = uint32((bucketBits)>>17) & p.kDirBitsMask
@@ -168,18 +168,18 @@ func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
 		tags[3] = uint32((bucketBits)>>35) & p.kDirBitsMask
 	case 17:
 		// 13 dirBits per tag, 64 bits per bucket
-		bucketBits := binary.LittleEndian.Uint64([]byte{p.buckets[pos], p.buckets[pos+1], p.buckets[pos+2], p.buckets[pos+3],
-			p.buckets[pos+4], p.buckets[pos+5], p.buckets[pos+6], p.buckets[pos+7]})
+		bucketBits := uint64(p.buckets[pos]) | uint64(p.buckets[pos+1])<<8 | uint64(p.buckets[pos+2])<<16 | uint64(p.buckets[pos+3])<<24 |
+			uint64(p.buckets[pos+4])<<32 | uint64(p.buckets[pos+5])<<40 | uint64(p.buckets[pos+6])<<48 | uint64(p.buckets[pos+7])<<56
 		codeword = uint16(bucketBits) & 0x0fff
 		tags[0] = uint32((bucketBits)>>8) & p.kDirBitsMask
 		tags[1] = uint32((bucketBits)>>21) & p.kDirBitsMask
 		tags[2] = uint32((bucketBits)>>34) & p.kDirBitsMask
 		tags[3] = uint32((bucketBits)>>47) & p.kDirBitsMask
 	default:
-		u1, u2, rShift := p.readOutUint64(i, pos)
+		u1, u2, rShift := p.readOutBytes(i, pos)
 		codeword = uint16(u1>>rShift) & 0x0fff
 		for k := 0; k < tagsPerPTable; k++ {
-			tags[k] = uint32(u1>>rShift>>(codeSize-cFpSize+k*int(p.kDirBitsPerTag))) & p.kDirBitsMask
+			tags[k] = uint32(u1 >> rShift >> (codeSize - cFpSize + k*int(p.kDirBitsPerTag)))
 			shift := codeSize - cFpSize + k*int(p.kDirBitsPerTag) - 64 + int(rShift)
 			if shift < 0 {
 				tags[k] |= uint32(u2 << -shift)
@@ -199,23 +199,20 @@ func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
 	tags[3] |= uint32(lowBits[3])
 }
 
-func (p *PackedTable) readOutUint64(i, pos uint) (uint64, uint64, uint) {
+func (p *PackedTable) readOutBytes(i, pos uint) (uint64, uint64, uint) {
 	rShift := (p.kBitsPerBucket * i) & (bitsPerByte - 1)
 	kBytes := int((rShift + p.kBitsPerBucket + 7) / bitsPerByte)
 
 	// tag is max 32bit, store 31bit per tag, so max occupies 16 bytes
-	b1 := make([]byte, bytesPerUint64)
-	b2 := make([]byte, bytesPerUint64)
-
-	for k := uint(0); k < bytesPerUint64; k++ {
-		b1[k] = p.buckets[pos+k]
-		if kBytes > bytesPerUint64 {
-			b2[k] = p.buckets[pos+bytesPerUint64+k]
+	var u1, u2 uint64
+	for k := uint(0); k < uint(kBytes); k++ {
+		if k < bytesPerUint64 {
+			u1 |= uint64(p.buckets[pos+k]) << (k * bitsPerByte)
+		} else {
+			u2 |= uint64(p.buckets[pos+k]) << ((k - bytesPerUint64) * bitsPerByte)
 		}
 	}
 
-	u1 := binary.LittleEndian.Uint64(b1)
-	u2 := binary.LittleEndian.Uint64(b2)
 	return u1, u2, rShift
 }
 
@@ -243,165 +240,124 @@ func (p *PackedTable) WriteBucket(i uint, tags [tagsPerPTable]uint32) {
 	switch p.kBitsPerBucket {
 	case 16:
 		// 1 dirBits per tag
-		var t = codeword | uint16(highBits[0]<<8) | uint16(highBits[1]<<9) |
+		var v = codeword | uint16(highBits[0]<<8) | uint16(highBits[1]<<9) |
 			uint16(highBits[2]<<10) | uint16(highBits[3]<<11)
-		b := make([]byte, 2)
-		binary.LittleEndian.PutUint16(b, t)
-		p.buckets[pos] = b[0]
-		p.buckets[pos+1] = b[1]
+		p.buckets[pos] = byte(v)
+		p.buckets[pos+1] = byte(v >> 8)
 	case 20:
 		// 2 dirBits per tag
-		var t uint32
-		t = binary.LittleEndian.Uint32([]byte{p.buckets[pos], p.buckets[pos+1], p.buckets[pos+2], p.buckets[pos+3]})
+		var v uint32
+		v = uint32(p.buckets[pos]) | uint32(p.buckets[pos+1])<<8 | uint32(p.buckets[pos+2])<<16 | uint32(p.buckets[pos+3])<<24
 		if (i & 0x0001) == 0 {
-			t &= 0xfff00000
-			t |= uint32(codeword) | (highBits[0] << 8) |
+			v &= 0xfff00000
+			v |= uint32(codeword) | (highBits[0] << 8) |
 				(highBits[1] << 10) | (highBits[2] << 12) |
 				(highBits[3] << 14)
 		} else {
-			t &= 0xff00000f
-			t |= uint32(codeword)<<4 | (highBits[0] << 12) |
+			v &= 0xff00000f
+			v |= uint32(codeword)<<4 | (highBits[0] << 12) |
 				(highBits[1] << 14) | (highBits[2] << 16) |
 				(highBits[3] << 18)
 		}
-		b := make([]byte, bytesPerUint32)
-		binary.LittleEndian.PutUint32(b, t)
-		p.buckets[pos] = b[0]
-		p.buckets[pos+1] = b[1]
-		p.buckets[pos+2] = b[2]
-		p.buckets[pos+3] = b[3]
+		p.buckets[pos] = byte(v)
+		p.buckets[pos+1] = byte(v >> 8)
+		p.buckets[pos+2] = byte(v >> 16)
+		p.buckets[pos+3] = byte(v >> 24)
 	case 24:
 		// 3 dirBits per tag
-		var t uint32
-		t = binary.LittleEndian.Uint32([]byte{p.buckets[pos], p.buckets[pos+1], p.buckets[pos+2], p.buckets[pos+3]})
-		t &= 0xff000000
-		t |= uint32(codeword) | (highBits[0] << 8) | (highBits[1] << 11) |
+		var v uint32
+		v = uint32(p.buckets[pos]) | uint32(p.buckets[pos+1])<<8 | uint32(p.buckets[pos+2])<<16 | uint32(p.buckets[pos+3])<<24
+		v &= 0xff000000
+		v |= uint32(codeword) | (highBits[0] << 8) | (highBits[1] << 11) |
 			(highBits[2] << 14) | (highBits[3] << 17)
-		b := make([]byte, bytesPerUint32)
-		binary.LittleEndian.PutUint32(b, t)
-		p.buckets[pos] = b[0]
-		p.buckets[pos+1] = b[1]
-		p.buckets[pos+2] = b[2]
-		p.buckets[pos+3] = b[3]
+		p.buckets[pos] = byte(v)
+		p.buckets[pos+1] = byte(v >> 8)
+		p.buckets[pos+2] = byte(v >> 16)
+		p.buckets[pos+3] = byte(v >> 24)
 	case 28:
 		// 4 dirBits per tag
-		var t uint32
-		t = binary.LittleEndian.Uint32([]byte{p.buckets[pos], p.buckets[pos+1], p.buckets[pos+2], p.buckets[pos+3]})
+		var v uint32
+		v = uint32(p.buckets[pos]) | uint32(p.buckets[pos+1])<<8 | uint32(p.buckets[pos+2])<<16 | uint32(p.buckets[pos+3])<<24
 		if (i & 0x0001) == 0 {
-			t &= 0xf0000000
-			t |= uint32(codeword) | (highBits[0] << 8) |
+			v &= 0xf0000000
+			v |= uint32(codeword) | (highBits[0] << 8) |
 				(highBits[1] << 12) | (highBits[2] << 16) |
 				(highBits[3] << 20)
 		} else {
-			t &= 0x0000000f
-			t |= uint32(codeword)<<4 | (highBits[0] << 12) |
+			v &= 0x0000000f
+			v |= uint32(codeword)<<4 | (highBits[0] << 12) |
 				(highBits[1] << 16) | (highBits[2] << 20) |
 				(highBits[3] << 24)
 		}
-		b := make([]byte, bytesPerUint32)
-		binary.LittleEndian.PutUint32(b, t)
-		p.buckets[pos] = b[0]
-		p.buckets[pos+1] = b[1]
-		p.buckets[pos+2] = b[2]
-		p.buckets[pos+3] = b[3]
+		p.buckets[pos] = byte(v)
+		p.buckets[pos+1] = byte(v >> 8)
+		p.buckets[pos+2] = byte(v >> 16)
+		p.buckets[pos+3] = byte(v >> 24)
 	case 32:
 		// 5 dirBits per tag
-		var t = uint32(codeword) | (highBits[0] << 8) | (highBits[1] << 13) |
+		var v = uint32(codeword) | (highBits[0] << 8) | (highBits[1] << 13) |
 			(highBits[2] << 18) | (highBits[3] << 23)
-		b := make([]byte, bytesPerUint32)
-		binary.LittleEndian.PutUint32(b, t)
-		p.buckets[pos] = b[0]
-		p.buckets[pos+1] = b[1]
-		p.buckets[pos+2] = b[2]
-		p.buckets[pos+3] = b[3]
+		p.buckets[pos] = byte(v)
+		p.buckets[pos+1] = byte(v >> 8)
+		p.buckets[pos+2] = byte(v >> 16)
+		p.buckets[pos+3] = byte(v >> 24)
 	case 48:
 		// 9 dirBits per tag
-		var t uint64
-		t = binary.LittleEndian.Uint64([]byte{p.buckets[pos], p.buckets[pos+1], p.buckets[pos+2], p.buckets[pos+3], p.buckets[pos+4], p.buckets[pos+5], p.buckets[pos+6], p.buckets[pos+7]})
-		t &= 0xffff000000000000
-		t |= uint64(codeword) | uint64(highBits[0])<<8 |
+		var v uint64
+		v = uint64(p.buckets[pos]) | uint64(p.buckets[pos+1])<<8 | uint64(p.buckets[pos+2])<<16 | uint64(p.buckets[pos+3])<<24 |
+			uint64(p.buckets[pos+4])<<32 | uint64(p.buckets[pos+5])<<40 | uint64(p.buckets[pos+6])<<48 | uint64(p.buckets[pos+7])<<56
+		v &= 0xffff000000000000
+		v |= uint64(codeword) | uint64(highBits[0])<<8 |
 			uint64(highBits[1])<<17 | uint64(highBits[2])<<26 |
 			uint64(highBits[3])<<35
-		b := make([]byte, bytesPerUint64)
-		binary.LittleEndian.PutUint64(b, t)
-		p.buckets[pos] = b[0]
-		p.buckets[pos+1] = b[1]
-		p.buckets[pos+2] = b[2]
-		p.buckets[pos+3] = b[3]
-		p.buckets[pos+4] = b[4]
-		p.buckets[pos+5] = b[5]
-		p.buckets[pos+6] = b[6]
-		p.buckets[pos+7] = b[7]
+		p.buckets[pos] = byte(v)
+		p.buckets[pos+1] = byte(v >> 8)
+		p.buckets[pos+2] = byte(v >> 16)
+		p.buckets[pos+3] = byte(v >> 24)
+		p.buckets[pos+4] = byte(v >> 32)
+		p.buckets[pos+5] = byte(v >> 40)
+		p.buckets[pos+6] = byte(v >> 48)
+		p.buckets[pos+7] = byte(v >> 56)
 	case 64:
 		// 13 dirBits per tag
-		var t = uint64(codeword) | uint64(highBits[0])<<8 |
+		var v = uint64(codeword) | uint64(highBits[0])<<8 |
 			uint64(highBits[1])<<21 | uint64(highBits[2])<<34 |
 			uint64(highBits[3])<<47
-		b := make([]byte, bytesPerUint64)
-		binary.LittleEndian.PutUint64(b, t)
-		p.buckets[pos] = b[0]
-		p.buckets[pos+1] = b[1]
-		p.buckets[pos+2] = b[2]
-		p.buckets[pos+3] = b[3]
-		p.buckets[pos+4] = b[4]
-		p.buckets[pos+5] = b[5]
-		p.buckets[pos+6] = b[6]
-		p.buckets[pos+7] = b[7]
+		p.buckets[pos] = byte(v)
+		p.buckets[pos+1] = byte(v >> 8)
+		p.buckets[pos+2] = byte(v >> 16)
+		p.buckets[pos+3] = byte(v >> 24)
+		p.buckets[pos+4] = byte(v >> 32)
+		p.buckets[pos+5] = byte(v >> 40)
+		p.buckets[pos+6] = byte(v >> 48)
+		p.buckets[pos+7] = byte(v >> 56)
 	default:
-		b1, b2, useTwo := p.writeInByte(i, pos, codeword, highBits)
-		for k := uint(0); k < bytesPerUint64; k++ {
-			p.buckets[pos+k] = b1[k]
-			if useTwo {
-				p.buckets[pos+bytesPerUint64+k] = b2[k]
-			}
-		}
-
+		p.writeInBytes(i, pos, codeword, highBits)
 	}
 
 }
 
-func (p *PackedTable) writeInByte(i, pos uint, codeword uint16, highBits [tagsPerPTable]uint32) ([]byte, []byte, bool) {
+func (p *PackedTable) writeInBytes(i, pos uint, codeword uint16, highBits [tagsPerPTable]uint32) {
 	rShift := (p.kBitsPerBucket * i) & (bitsPerByte - 1)
 	kBytes := int((rShift + p.kBitsPerBucket + 7) / bitsPerByte)
 	lShift := (rShift + p.kBitsPerBucket) & (bitsPerByte - 1)
-	useTwo := kBytes > bytesPerUint64
-	// tag is max 32bit, store 31bit per tag, so max occupies 16 bytes
-	b1 := make([]byte, bytesPerUint64)
-	b2 := make([]byte, bytesPerUint64)
-	for k := uint(0); k < bytesPerUint64; k++ {
-		b1[k] = p.buckets[pos+k]
-		if useTwo {
-			b2[k] = p.buckets[pos+bytesPerUint64+k]
-		}
-	}
 
+	// tag is max 32bit, store 31bit per tag, so max occupies 16 bytes
 	rMask := uint8(0xff) >> (bitsPerByte - rShift)
 	lMask := uint8(0xff) << lShift
 	if lShift == 0 {
 		lMask = uint8(0)
 	}
-	if kBytes == 1 {
-		mask := lMask | rMask
-		b1[0] &= mask
-	} else {
-		b1[0] &= rMask
-		for k := 1; k < kBytes-1; k++ {
-			if k < bytesPerUint64 {
-				b1[k] = 0
-			} else {
-				b2[k-bytesPerUint64] = 0
-			}
-		}
-		if useTwo {
-			b2[kBytes-bytesPerUint64-1] &= lMask
-		} else {
-			b1[kBytes-1] &= lMask
-		}
-	}
 
 	var u1, u2 uint64
-	u1 = binary.LittleEndian.Uint64(b1)
-	u2 = binary.LittleEndian.Uint64(b2)
+	u1 |= uint64(p.buckets[pos] & rMask)
+	end := uint(kBytes - 1)
+	if kBytes > bytesPerUint64 {
+		u2 |= uint64(p.buckets[pos+end]&lMask) << ((end - bytesPerUint64) * bitsPerByte)
+	} else {
+		u1 |= uint64(p.buckets[pos+end]&lMask) << (end * bitsPerByte)
+	}
+
 	u1 |= uint64(codeword) << rShift
 	for k := 0; k < tagsPerPTable; k++ {
 		u1 |= uint64(highBits[k]) << (codeSize - cFpSize + k*int(p.kDirBitsPerTag)) << rShift
@@ -412,9 +368,16 @@ func (p *PackedTable) writeInByte(i, pos uint, codeword uint16, highBits [tagsPe
 			u2 |= uint64(highBits[k]) << shift
 		}
 	}
-	binary.LittleEndian.PutUint64(b1, u1)
-	binary.LittleEndian.PutUint64(b2, u2)
-	return b1, b2, useTwo
+
+	for k := uint(0); k < uint(kBytes); k++ {
+		if k < bytesPerUint64 {
+			p.buckets[pos+k] = byte(u1 >> (k * bitsPerByte))
+		} else {
+			p.buckets[pos+k] = byte(u2 >> ((k - bytesPerUint64) * bitsPerByte))
+		}
+	}
+
+	return
 }
 
 //FindTagInBuckets find if tag in bucket i1 i2

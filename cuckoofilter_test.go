@@ -29,8 +29,8 @@ func TestFilter(t *testing.T) {
 				if f == 2 && table == TableTypePacked {
 					continue
 				}
-				if table == TableTypePacked {
-					b = 4
+				if table == TableTypePacked && b != 4 {
+					continue
 				}
 				cf := NewFilter(b, f, 8190, table)
 				//fmt.Println(cf.Info())
@@ -48,24 +48,28 @@ func TestFilter(t *testing.T) {
 
 				if count != uint(len(a)) {
 					t.Errorf("Expected count = %d, instead count = %d, b %v f %v", uint(len(a)), count, b, f)
+					return
 				}
 
 				for _, v := range a {
 					if !cf.Contain(v) {
-						t.Errorf("Expected contain, instead not contain")
+						t.Errorf("Expected contain, instead not contain, b %v f %v table type %v", b, f, table)
+						return
 					}
 					cf.Delete(v)
 				}
 
 				count = cf.Size()
 				if count != 0 {
-					t.Errorf("Expected count = 0, instead count == %d", count)
+					t.Errorf("Expected count = 0, instead count == %d, b %v f %v table type %v", count, b, f, table)
+					return
 				}
 
 				bytes := cf.Encode()
 				ncf, err := Decode(bytes)
 				if err != nil || !reflect.DeepEqual(cf, ncf) {
 					t.Errorf("Expected epual, err %v", err)
+					return
 				}
 
 				cf.Info()

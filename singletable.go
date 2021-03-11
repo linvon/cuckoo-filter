@@ -73,33 +73,27 @@ func (t *SingleTable) ReadTag(i, j uint) uint32 {
 	case 8:
 		tag = uint32(t.bucket[pos])
 	case 12:
-		tag = uint32(binary.LittleEndian.Uint16([]byte{t.bucket[pos], t.bucket[pos+1]})) >> ((j & 1) << 2)
+		tag = (uint32(t.bucket[pos]) | uint32(t.bucket[pos+1])<<8) >> ((j & 1) << 2)
 	case 16:
-		tag = uint32(binary.LittleEndian.Uint16([]byte{t.bucket[pos], t.bucket[pos+1]}))
+		tag = uint32(t.bucket[pos]) | uint32(t.bucket[pos+1])<<8
 	case 32:
-		tag = binary.LittleEndian.Uint32([]byte{t.bucket[pos], t.bucket[pos+1], t.bucket[pos+2], t.bucket[pos+3]})
+		tag = uint32(t.bucket[pos]) | uint32(t.bucket[pos+1])<<8 | uint32(t.bucket[pos+2])<<16 | uint32(t.bucket[pos+3])<<24
 	default:
-		tmp := t.readOutUint64(i, j, pos)
-		tag = uint32(tmp)
+		tag = t.readOutBytes(i, j, pos)
 	}
 	return tag & t.tagMask
 }
 
-func (t *SingleTable) readOutUint64(i, j uint, pos int) uint64 {
+func (t *SingleTable) readOutBytes(i, j uint, pos int) uint32 {
 	rShift := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) & (bitsPerByte - 1)
 	kBytes := int((rShift + t.bitsPerTag + 7) / bitsPerByte)
 	// tag is max 32bit, so max occupies 5 bytes
-	b := make([]byte, bytesPerUint64)
-	for k := 0; k < bytesPerUint64; k++ {
-		if k+1 <= kBytes {
-			b[k] = t.bucket[pos+k]
-		} else {
-			b[k] = 0
-		}
+	var tmp uint64
+	for k := 0; k < kBytes; k++ {
+		tmp |= uint64(t.bucket[pos+k]) << (bitsPerByte * k)
 	}
-	tmp := binary.LittleEndian.Uint64(b)
 	tmp >>= rShift
-	return tmp
+	return uint32(tmp)
 }
 
 //WriteTag write tag into bucket(i,j)
@@ -124,8 +118,7 @@ func (t *SingleTable) WriteTag(i, j uint, n uint32) {
 		t.bucket[pos] = uint8(tag)
 	case 12:
 		var tmp uint16
-		b := make([]byte, 2)
-		tmp = binary.LittleEndian.Uint16([]byte{t.bucket[pos], t.bucket[pos+1]})
+		tmp = uint16(t.bucket[pos]) | uint16(t.bucket[pos+1])<<8
 		if (j & 1) == 0 {
 			tmp &= 0xf000
 			tmp |= uint16(tag)
@@ -133,65 +126,41 @@ func (t *SingleTable) WriteTag(i, j uint, n uint32) {
 			tmp &= 0x000f
 			tmp |= uint16(tag) << 4
 		}
-		binary.LittleEndian.PutUint16(b, tmp)
-		t.bucket[pos] = b[0]
-		t.bucket[pos+1] = b[1]
+		t.bucket[pos] = byte(tmp)
+		t.bucket[pos+1] = byte(tmp >> 8)
 	case 16:
-		b := make([]byte, 2)
-		binary.LittleEndian.PutUint16(b, uint16(tag))
-		t.bucket[pos] = b[0]
-		t.bucket[pos+1] = b[1]
+		t.bucket[pos] = byte(tag)
+		t.bucket[pos+1] = byte(tag >> 8)
 	case 32:
-		b := make([]byte, 4)
-		binary.LittleEndian.PutUint32(b, tag)
-		t.bucket[pos] = b[0]
-		t.bucket[pos+1] = b[1]
-		t.bucket[pos+2] = b[2]
-		t.bucket[pos+3] = b[3]
+		t.bucket[pos] = byte(tag)
+		t.bucket[pos+1] = byte(tag >> 8)
+		t.bucket[pos+2] = byte(tag >> 16)
+		t.bucket[pos+3] = byte(tag >> 24)
 	default:
-		b := t.writeInByte(i, j, pos, tag)
-		for k := 0; k < bytesPerUint64; k++ {
-			if pos+k >= int(t.len) {
-				break
-			} else {
-				t.bucket[pos+k] = b[k]
-			}
-		}
+		t.writeInBytes(i, j, pos, tag)
 	}
 }
 
-func (t *SingleTable) writeInByte(i, j uint, pos int, tag uint32) []byte {
+func (t *SingleTable) writeInBytes(i, j uint, pos int, tag uint32) {
 	rShift := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) & (bitsPerByte - 1)
 	kBytes := int((rShift + t.bitsPerTag + 7) / bitsPerByte)
 	lShift := (rShift + t.bitsPerTag) & (bitsPerByte - 1)
 	// tag is max 32bit, so max occupies 5 bytes
-	b := make([]byte, bytesPerUint64)
-	for k := 0; k < bytesPerUint64; k++ {
-		if pos+k >= int(t.len) {
-			b[k] = 0
-		} else {
-			b[k] = t.bucket[pos+k]
-		}
-	}
 	rMask := uint8(0xff) >> (bitsPerByte - rShift)
 	lMask := uint8(0xff) << lShift
 	if lShift == 0 {
 		lMask = uint8(0)
 	}
-	if kBytes == 1 {
-		mask := lMask | rMask
-		b[0] &= mask
-	} else {
-		b[0] &= rMask
-		for k := 1; k < kBytes-1; k++ {
-			b[k] = 0
-		}
-		b[kBytes-1] &= lMask
-	}
-	tmp := binary.LittleEndian.Uint64(b)
+	var tmp uint64
+	tmp |= uint64(t.bucket[pos] & rMask)
+	end := kBytes - 1
+	tmp |= uint64(t.bucket[pos+end]&lMask) << (end * bitsPerByte)
 	tmp |= uint64(tag) << rShift
-	binary.LittleEndian.PutUint64(b, tmp)
-	return b
+
+	for k := 0; k < kBytes; k++ {
+		t.bucket[pos+k] = byte(tmp >> (k * bitsPerByte))
+	}
+	return
 }
 
 //FindTagInBuckets find if tag in bucket i1 i2
