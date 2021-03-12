@@ -89,15 +89,16 @@ func (f *Filter) indexHash(hv uint32) uint {
 }
 
 func (f *Filter) tagHash(hv uint32) uint32 {
-	var tag uint32
-	tag = hv%((1<<f.bitsPerItem)-1) + 1
-	return tag
+	return hv%((1<<f.bitsPerItem)-1) + 1
 }
-func (f *Filter) generateIndexTagHash(item []byte, index *uint, tag *uint32) {
+
+func (f *Filter) generateIndexTagHash(item []byte) (index uint, tag uint32) {
 	hash := metro.Hash64(item, 1337)
-	*index = f.indexHash(uint32(hash >> 32))
-	*tag = f.tagHash(uint32(hash))
+	index = f.indexHash(uint32(hash >> 32))
+	tag = f.tagHash(uint32(hash))
+	return
 }
+
 func (f *Filter) altIndex(index uint, tag uint32) uint {
 	// 0x5bd1e995 is the hash constant from MurmurHash2
 	return f.indexHash(uint32(index) ^ (tag * 0x5bd1e995))
@@ -129,13 +130,10 @@ func (f *Filter) BitsPerItem() float64 {
 
 //Add add an item into filter, return false when filter is full
 func (f *Filter) Add(item []byte) bool {
-	var i uint
-	var tag uint32
-
 	if f.victim.used {
 		return false
 	}
-	f.generateIndexTagHash(item, &i, &tag)
+	i, tag := f.generateIndexTagHash(item)
 	return f.addImpl(i, tag)
 }
 
@@ -174,16 +172,12 @@ func (f *Filter) addImpl(i uint, tag uint32) bool {
 
 //Contain return if filter contains an item
 func (f *Filter) Contain(key []byte) bool {
-	var found bool
-	var i1, i2 uint
-	var tag uint32
+	i1, tag := f.generateIndexTagHash(key)
+	i2 := f.altIndex(i1, tag)
 
-	f.generateIndexTagHash(key, &i1, &tag)
-	i2 = f.altIndex(i1, tag)
+	hit := f.victim.used && tag == f.victim.tag && (i1 == f.victim.index || i2 == f.victim.index)
 
-	found = f.victim.used && tag == f.victim.tag && (i1 == f.victim.index || i2 == f.victim.index)
-
-	if found || f.table.FindTagInBuckets(i1, i2, tag) {
+	if hit || f.table.FindTagInBuckets(i1, i2, tag) {
 		return true
 	}
 	return false
@@ -191,11 +185,8 @@ func (f *Filter) Contain(key []byte) bool {
 
 //Delete delete item from filter, return false when item not exist
 func (f *Filter) Delete(key []byte) bool {
-	var i1, i2 uint
-	var tag uint32
-
-	f.generateIndexTagHash(key, &i1, &tag)
-	i2 = f.altIndex(i1, tag)
+	i1, tag := f.generateIndexTagHash(key)
+	i2 := f.altIndex(i1, tag)
 
 	if f.table.DeleteTagFromBucket(i1, tag) || f.table.DeleteTagFromBucket(i2, tag) {
 		f.numItems--
