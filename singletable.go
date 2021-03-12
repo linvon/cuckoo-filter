@@ -61,7 +61,7 @@ func (t *SingleTable) BitsPerItem() uint {
 
 //ReadTag read tag from bucket(i,j)
 func (t *SingleTable) ReadTag(i, j uint) uint32 {
-	pos := int(i*t.bitsPerTag*t.kTagsPerBucket+t.bitsPerTag*j) / bitsPerByte
+	pos := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) / bitsPerByte
 	var tag uint32
 	/* following code only works for little-endian */
 	switch t.bitsPerTag {
@@ -84,12 +84,12 @@ func (t *SingleTable) ReadTag(i, j uint) uint32 {
 	return tag & t.tagMask
 }
 
-func (t *SingleTable) readOutBytes(i, j uint, pos int) uint32 {
+func (t *SingleTable) readOutBytes(i, j, pos uint) uint32 {
 	rShift := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) & (bitsPerByte - 1)
-	kBytes := int((rShift + t.bitsPerTag + 7) / bitsPerByte)
 	// tag is max 32bit, so max occupies 5 bytes
+	kBytes := (rShift + t.bitsPerTag + 7) / bitsPerByte
 	var tmp uint64
-	for k := 0; k < kBytes; k++ {
+	for k := uint(0); k < kBytes; k++ {
 		tmp |= uint64(t.bucket[pos+k]) << (bitsPerByte * k)
 	}
 	tmp >>= rShift
@@ -98,7 +98,7 @@ func (t *SingleTable) readOutBytes(i, j uint, pos int) uint32 {
 
 //WriteTag write tag into bucket(i,j)
 func (t *SingleTable) WriteTag(i, j uint, n uint32) {
-	pos := int(i*t.bitsPerTag*t.kTagsPerBucket+t.bitsPerTag*j) / bitsPerByte
+	pos := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) / bitsPerByte
 	var tag = n & t.tagMask
 	/* following code only works for little-endian */
 	switch t.bitsPerTag {
@@ -141,11 +141,12 @@ func (t *SingleTable) WriteTag(i, j uint, n uint32) {
 	}
 }
 
-func (t *SingleTable) writeInBytes(i, j uint, pos int, tag uint32) {
+func (t *SingleTable) writeInBytes(i, j, pos uint, tag uint32) {
 	rShift := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) & (bitsPerByte - 1)
-	kBytes := int((rShift + t.bitsPerTag + 7) / bitsPerByte)
 	lShift := (rShift + t.bitsPerTag) & (bitsPerByte - 1)
 	// tag is max 32bit, so max occupies 5 bytes
+	kBytes := (rShift + t.bitsPerTag + 7) / bitsPerByte
+
 	rMask := uint8(0xff) >> (bitsPerByte - rShift)
 	lMask := uint8(0xff) << lShift
 	if lShift == 0 {
@@ -157,7 +158,7 @@ func (t *SingleTable) writeInBytes(i, j uint, pos int, tag uint32) {
 	tmp |= uint64(t.bucket[pos+end]&lMask) << (end * bitsPerByte)
 	tmp |= uint64(tag) << rShift
 
-	for k := 0; k < kBytes; k++ {
+	for k := uint(0); k < kBytes; k++ {
 		t.bucket[pos+k] = byte(tmp >> (k * bitsPerByte))
 	}
 	return

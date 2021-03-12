@@ -151,8 +151,9 @@ func (f *Filter) addImpl(i uint, tag uint32) bool {
 	var oldTag uint32
 
 	var count uint
+	var kickOut bool
 	for count = 0; count < kMaxCuckooCount; count++ {
-		kickOut := count > 0
+		kickOut = count > 0
 		oldTag = 0
 		if f.table.InsertTagToBucket(curIndex, curTag, kickOut, &oldTag) {
 			f.numItems++

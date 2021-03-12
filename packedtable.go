@@ -201,11 +201,11 @@ func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
 
 func (p *PackedTable) readOutBytes(i, pos uint) (uint64, uint64, uint) {
 	rShift := (p.kBitsPerBucket * i) & (bitsPerByte - 1)
-	kBytes := int((rShift + p.kBitsPerBucket + 7) / bitsPerByte)
-
 	// tag is max 32bit, store 31bit per tag, so max occupies 16 bytes
+	kBytes := (rShift + p.kBitsPerBucket + 7) / bitsPerByte
+
 	var u1, u2 uint64
-	for k := uint(0); k < uint(kBytes); k++ {
+	for k := uint(0); k < kBytes; k++ {
 		if k < bytesPerUint64 {
 			u1 |= uint64(p.buckets[pos+k]) << (k * bitsPerByte)
 		} else {
@@ -339,10 +339,10 @@ func (p *PackedTable) WriteBucket(i uint, tags [tagsPerPTable]uint32) {
 
 func (p *PackedTable) writeInBytes(i, pos uint, codeword uint16, highBits [tagsPerPTable]uint32) {
 	rShift := (p.kBitsPerBucket * i) & (bitsPerByte - 1)
-	kBytes := int((rShift + p.kBitsPerBucket + 7) / bitsPerByte)
 	lShift := (rShift + p.kBitsPerBucket) & (bitsPerByte - 1)
-
 	// tag is max 32bit, store 31bit per tag, so max occupies 16 bytes
+	kBytes := (rShift + p.kBitsPerBucket + 7) / bitsPerByte
+
 	rMask := uint8(0xff) >> (bitsPerByte - rShift)
 	lMask := uint8(0xff) << lShift
 	if lShift == 0 {
@@ -351,7 +351,7 @@ func (p *PackedTable) writeInBytes(i, pos uint, codeword uint16, highBits [tagsP
 
 	var u1, u2 uint64
 	u1 |= uint64(p.buckets[pos] & rMask)
-	end := uint(kBytes - 1)
+	end := kBytes - 1
 	if kBytes > bytesPerUint64 {
 		u2 |= uint64(p.buckets[pos+end]&lMask) << ((end - bytesPerUint64) * bitsPerByte)
 	} else {
@@ -369,7 +369,7 @@ func (p *PackedTable) writeInBytes(i, pos uint, codeword uint16, highBits [tagsP
 		}
 	}
 
-	for k := uint(0); k < uint(kBytes); k++ {
+	for k := uint(0); k < kBytes; k++ {
 		if k < bytesPerUint64 {
 			p.buckets[pos+k] = byte(u1 >> (k * bitsPerByte))
 		} else {
