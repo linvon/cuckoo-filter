@@ -30,7 +30,7 @@ In other implementation:
 - [panmari/cuckoofilter](https://github.com/panmari/cuckoofilter) use b=4, f=16 bit, which correspond to a false positive rate of `r ~= 0.0001`.
 - [irfansharif/cfilter](https://github.com/irfansharif/cfilter) can adjust b and f, but only can adjust f to 8x, which means it is in Bytes.
 
-In this implementation, you can adjust b and f to any value you want, and the Semi-sorting Buckets mentioned in paper is also avaliable, which can save 1 bit per item.
+In this implementation, you can adjust b and f to any value you want, and the Semi-sorting Buckets mentioned in paper is also available, which can save 1 bit per item.
 
 ##### Why custom is important?
 
