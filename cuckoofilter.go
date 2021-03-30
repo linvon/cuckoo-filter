@@ -54,10 +54,9 @@ type victimCache struct {
 
 //Filter cuckoo filter type struct
 type Filter struct {
-	victim      victimCache
-	numItems    uint
-	table       table
-	bitsPerItem uint
+	victim   victimCache
+	numItems uint
+	table    table
 }
 
 //NewFilter return a new initialized filter
@@ -78,8 +77,7 @@ func NewFilter(tagsPerBucket, bitsPerItem, maxNumKeys, tableType uint) *Filter {
 	table := getTable(tableType).(table)
 	table.Init(tagsPerBucket, bitsPerItem, numBuckets)
 	return &Filter{
-		table:       table,
-		bitsPerItem: table.BitsPerItem(),
+		table: table,
 	}
 }
 
@@ -89,7 +87,7 @@ func (f *Filter) indexHash(hv uint32) uint {
 }
 
 func (f *Filter) tagHash(hv uint32) uint32 {
-	return hv%((1<<f.bitsPerItem)-1) + 1
+	return hv%((1<<f.table.BitsPerItem())-1) + 1
 }
 
 func (f *Filter) generateIndexTagHash(item []byte) (index uint, tag uint32) {
@@ -286,9 +284,8 @@ func Decode(bytes []byte) (*Filter, error) {
 		return nil, err
 	}
 	return &Filter{
-		table:       table,
-		numItems:    numItems,
-		bitsPerItem: table.BitsPerItem(),
+		table:    table,
+		numItems: numItems,
 		victim: victimCache{
 			index: curIndex,
 			tag:   curTag,
