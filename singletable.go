@@ -6,13 +6,14 @@
 package cuckoo
 
 import (
+	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 )
 
-//SingleTable the most naive table implementation: one huge bit array
+// SingleTable the most naive table implementation: one huge bit array
 type SingleTable struct {
 	kTagsPerBucket uint
 	numBuckets     uint
@@ -22,44 +23,48 @@ type SingleTable struct {
 	len            uint
 }
 
-//NewSingleTable return a singleTable
+// NewSingleTable return a singleTable
 func NewSingleTable() *SingleTable {
 	return &SingleTable{}
 }
 
-//Init init table
-func (t *SingleTable) Init(tagsPerBucket, bitsPerTag, num uint) {
+// Init init table
+func (t *SingleTable) Init(tagsPerBucket, bitsPerTag, num uint, initialBucketsHint []byte) error {
 	t.bitsPerTag = bitsPerTag
 	t.numBuckets = num
 	t.kTagsPerBucket = tagsPerBucket
 
 	t.tagMask = (1 << bitsPerTag) - 1
 	t.len = (t.bitsPerTag*t.kTagsPerBucket*t.numBuckets + 7) >> 3
-
-	t.bucket = make([]byte, t.len)
+	buckets, err := getBucketsFromHint(initialBucketsHint, t.len)
+	if err != nil {
+		return err
+	}
+	t.bucket = buckets
+	return nil
 }
 
-//NumBuckets return num of table buckets
+// NumBuckets return num of table buckets
 func (t *SingleTable) NumBuckets() uint {
 	return t.numBuckets
 }
 
-//SizeInBytes return bytes occupancy of table
+// SizeInBytes return bytes occupancy of table
 func (t *SingleTable) SizeInBytes() uint {
 	return t.len
 }
 
-//SizeInTags return num of tags that table can store
+// SizeInTags return num of tags that table can store
 func (t *SingleTable) SizeInTags() uint {
 	return t.kTagsPerBucket * t.numBuckets
 }
 
-//BitsPerItem return bits occupancy per item of table
+// BitsPerItem return bits occupancy per item of table
 func (t *SingleTable) BitsPerItem() uint {
 	return t.bitsPerTag
 }
 
-//ReadTag read tag from bucket(i,j)
+// ReadTag read tag from bucket(i,j)
 func (t *SingleTable) ReadTag(i, j uint) uint32 {
 	pos := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) / bitsPerByte
 	var tag uint32
@@ -96,10 +101,10 @@ func (t *SingleTable) readOutBytes(i, j, pos uint) uint32 {
 	return uint32(tmp)
 }
 
-//WriteTag write tag into bucket(i,j)
+// WriteTag write tag into bucket(i,j)
 func (t *SingleTable) WriteTag(i, j uint, n uint32) {
 	pos := (i*t.bitsPerTag*t.kTagsPerBucket + t.bitsPerTag*j) / bitsPerByte
-	var tag = n & t.tagMask
+	tag := n & t.tagMask
 	/* following code only works for little-endian */
 	switch t.bitsPerTag {
 	case 2:
@@ -161,10 +166,9 @@ func (t *SingleTable) writeInBytes(i, j, pos uint, tag uint32) {
 	for k := uint(0); k < kBytes; k++ {
 		t.bucket[pos+k] = byte(tmp >> (k * bitsPerByte))
 	}
-	return
 }
 
-//FindTagInBuckets find if tag in bucket i1 i2
+// FindTagInBuckets find if tag in bucket i1 i2
 func (t *SingleTable) FindTagInBuckets(i1, i2 uint, tag uint32) bool {
 	var j uint
 	for j = 0; j < t.kTagsPerBucket; j++ {
@@ -175,7 +179,7 @@ func (t *SingleTable) FindTagInBuckets(i1, i2 uint, tag uint32) bool {
 	return false
 }
 
-//DeleteTagFromBucket delete tag from bucket i
+// DeleteTagFromBucket delete tag from bucket i
 func (t *SingleTable) DeleteTagFromBucket(i uint, tag uint32) bool {
 	var j uint
 	for j = 0; j < t.kTagsPerBucket; j++ {
@@ -187,7 +191,7 @@ func (t *SingleTable) DeleteTagFromBucket(i uint, tag uint32) bool {
 	return false
 }
 
-//InsertTagToBucket insert tag into bucket i
+// InsertTagToBucket insert tag into bucket i
 func (t *SingleTable) InsertTagToBucket(i uint, tag uint32, kickOut bool, oldTag *uint32) bool {
 	var j uint
 	for j = 0; j < t.kTagsPerBucket; j++ {
@@ -204,14 +208,14 @@ func (t *SingleTable) InsertTagToBucket(i uint, tag uint32, kickOut bool, oldTag
 	return false
 }
 
-//Reset reset table
+// Reset reset table
 func (t *SingleTable) Reset() {
 	for i := range t.bucket {
 		t.bucket[i] = 0
 	}
 }
 
-//Info return table's info
+// Info return table's info
 func (t *SingleTable) Info() string {
 	return fmt.Sprintf("SingleHashtable with tag size: %v bits \n"+
 		"\t\tAssociativity: %v \n"+
@@ -220,28 +224,22 @@ func (t *SingleTable) Info() string {
 		t.bitsPerTag, t.kTagsPerBucket, t.numBuckets, t.SizeInTags())
 }
 
+const singleTableMetadataSize = 3 + bytesPerUint32
+
 // Encode returns a byte slice representing a TableBucket
-func (t *SingleTable) Encode() []byte {
-	bytes := make([]byte, t.len+7)
-	bytes[0] = uint8(TableTypeSingle)
-	bytes[1] = uint8(t.kTagsPerBucket)
-	bytes[2] = uint8(t.bitsPerTag)
-	b := make([]byte, bytesPerUint32)
-	binary.LittleEndian.PutUint32(b, uint32(t.numBuckets))
-	copy(bytes[3:], b)
-	copy(bytes[7:], t.bucket)
-	return bytes
+func (t *SingleTable) Reader() (io.Reader, uint) {
+	var metadata [singleTableMetadataSize]byte
+	metadata[0] = uint8(TableTypeSingle)
+	metadata[1] = uint8(t.kTagsPerBucket)
+	metadata[2] = uint8(t.bitsPerTag)
+	binary.LittleEndian.PutUint32(metadata[3:], uint32(t.numBuckets))
+	return io.MultiReader(bytes.NewReader(metadata[:]), bytes.NewReader(t.bucket)), uint(len(metadata) + len(t.bucket))
 }
 
 // Decode parse a byte slice into a TableBucket
-func (t *SingleTable) Decode(bytes []byte) error {
-	tagsPerBucket := uint(bytes[1])
-	bitsPerTag := uint(bytes[2])
-	numBuckets := uint(binary.LittleEndian.Uint32(bytes[3:7]))
-	t.Init(tagsPerBucket, bitsPerTag, numBuckets)
-	if len(bytes) != int(t.len+7) {
-		return errors.New("unexpected bytes length")
-	}
-	copy(t.bucket, bytes[7:])
-	return nil
+func (t *SingleTable) Decode(b []byte) error {
+	tagsPerBucket := uint(b[1])
+	bitsPerTag := uint(b[2])
+	numBuckets := uint(binary.LittleEndian.Uint32(b[3:]))
+	return t.Init(tagsPerBucket, bitsPerTag, numBuckets, b[7:])
 }

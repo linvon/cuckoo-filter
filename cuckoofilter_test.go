@@ -6,6 +6,7 @@
 package cuckoo
 
 import (
+	"bytes"
 	"crypto/rand"
 	"fmt"
 	"io"
@@ -15,9 +16,11 @@ import (
 
 const size = 100000
 
-var testBucketSize = []uint{2, 4, 8}
-var testFingerprintSize = []uint{2, 4, 5, 6, 7, 8, 9, 10, 12, 13, 16, 17, 23, 31, 32}
-var testTableType = []uint{TableTypeSingle, TableTypePacked}
+var (
+	testBucketSize      = []uint{2, 4, 8}
+	testFingerprintSize = []uint{2, 4, 5, 6, 7, 8, 9, 10, 12, 13, 16, 17, 23, 31, 32}
+	testTableType       = []uint{TableTypeSingle, TableTypePacked}
+)
 
 func TestFilter(t *testing.T) {
 	var insertNum uint = 50000
@@ -33,7 +36,7 @@ func TestFilter(t *testing.T) {
 					continue
 				}
 				cf := NewFilter(b, f, 8190, table)
-				//fmt.Println(cf.Info())
+				// fmt.Println(cf.Info())
 				a := make([][]byte, 0)
 				for i := uint(0); i < insertNum; i++ {
 					_, _ = io.ReadFull(rand.Reader, hash[:])
@@ -45,11 +48,47 @@ func TestFilter(t *testing.T) {
 				}
 
 				count := cf.Size()
-
 				if count != uint(len(a)) {
 					t.Errorf("Expected count = %d, instead count = %d, b %v f %v", uint(len(a)), count, b, f)
 					return
 				}
+
+				encodedBytes, err := cf.Encode()
+				if err != nil {
+					t.Fatalf("err %v", err)
+				}
+				if len(encodedBytes) != cap(encodedBytes) {
+					t.Fatalf("len(%d) != cap(%d)", len(encodedBytes), cap(encodedBytes))
+				}
+				ncf, err := Decode(encodedBytes)
+				if err != nil || !reflect.DeepEqual(cf, ncf) {
+					t.Errorf("Expected epual, err %v", err)
+					return
+				}
+
+				encodedBytes, err = cf.Encode()
+				if err != nil {
+					t.Fatalf("err %v", err)
+				}
+				ncf, err = DecodeFrom(encodedBytes)
+				if err != nil || !reflect.DeepEqual(cf, ncf) {
+					t.Errorf("Expected epual, err %v", err)
+					return
+				}
+
+				filterReader, _ := cf.EncodeReader()
+				bytesFromReader, err := io.ReadAll(filterReader)
+				if err != nil {
+					t.Fatalf("Error reading from reader")
+				}
+				if !bytes.Equal(bytesFromReader, encodedBytes) {
+					t.Fatalf("Expected to be equal")
+				}
+
+				fmt.Println(cf.Info())
+				cf.BitsPerItem()
+				cf.SizeInBytes()
+				cf.LoadFactor()
 
 				for _, v := range a {
 					if !cf.Contain(v) {
@@ -65,22 +104,10 @@ func TestFilter(t *testing.T) {
 					return
 				}
 
-				bytes := cf.Encode()
-				ncf, err := Decode(bytes)
-				if err != nil || !reflect.DeepEqual(cf, ncf) {
-					t.Errorf("Expected epual, err %v", err)
-					return
-				}
-
-				cf.Info()
-				cf.BitsPerItem()
-				cf.SizeInBytes()
-				cf.LoadFactor()
 				fmt.Printf("Filter bucketSize %v fingerprintSize %v tableType %v falsePositive Rate %v \n", b, f, table, cf.FalsePositiveRate())
 			}
 		}
 	}
-
 }
 
 func BenchmarkFilterSingle_Reset(b *testing.B) {

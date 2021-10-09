@@ -6,9 +6,12 @@
 package cuckoo
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+
 	"github.com/dgryski/go-metro"
 )
 
@@ -16,14 +19,14 @@ import (
 const kMaxCuckooCount uint = 500
 
 const (
-	//TableTypeSingle normal single table
+	// TableTypeSingle normal single table
 	TableTypeSingle = 0
-	//TableTypePacked packed table, use semi-sort to save 1 bit per item
+	// TableTypePacked packed table, use semi-sort to save 1 bit per item
 	TableTypePacked = 1
 )
 
 type table interface {
-	Init(tagsPerBucket, bitsPerTag, num uint)
+	Init(tagsPerBucket, bitsPerTag, num uint, initialBucketsHint []byte) error
 	NumBuckets() uint
 	FindTagInBuckets(i1, i2 uint, tag uint32) bool
 	DeleteTagFromBucket(i uint, tag uint32) bool
@@ -32,7 +35,7 @@ type table interface {
 	SizeInBytes() uint
 	Info() string
 	BitsPerItem() uint
-	Encode() []byte
+	Reader() (io.Reader, uint)
 	Decode([]byte) error
 	Reset()
 }
@@ -52,7 +55,9 @@ type victimCache struct {
 	used  bool
 }
 
-//Filter cuckoo filter type struct
+const filterMetadataSize = 3*bytesPerUint32 + 1
+
+// Filter cuckoo filter type struct
 type Filter struct {
 	victim   victimCache
 	numItems uint
@@ -75,7 +80,7 @@ func NewFilter(tagsPerBucket, bitsPerItem, maxNumKeys, tableType uint) *Filter {
 		numBuckets = 1
 	}
 	table := getTable(tableType).(table)
-	table.Init(tagsPerBucket, bitsPerItem, numBuckets)
+	_ = table.Init(tagsPerBucket, bitsPerItem, numBuckets, nil)
 	return &Filter{
 		table: table,
 	}
@@ -102,7 +107,7 @@ func (f *Filter) altIndex(index uint, tag uint32) uint {
 	return f.indexHash(uint32(index) ^ (tag * 0x5bd1e995))
 }
 
-//Size return num of items that filter store
+// Size return num of items that filter store
 func (f *Filter) Size() uint {
 	var c uint
 	if f.victim.used {
@@ -111,22 +116,22 @@ func (f *Filter) Size() uint {
 	return f.numItems + c
 }
 
-//LoadFactor return current filter's loadFactor
+// LoadFactor return current filter's loadFactor
 func (f *Filter) LoadFactor() float64 {
 	return 1.0 * float64(f.Size()) / float64(f.table.SizeInTags())
 }
 
-//SizeInBytes return bytes occupancy of filter's table
+// SizeInBytes return bytes occupancy of filter's table
 func (f *Filter) SizeInBytes() uint {
 	return f.table.SizeInBytes()
 }
 
-//BitsPerItem return bits occupancy per item of filter's table
+// BitsPerItem return bits occupancy per item of filter's table
 func (f *Filter) BitsPerItem() float64 {
 	return 8.0 * float64(f.table.SizeInBytes()) / float64(f.Size())
 }
 
-//Add add an item into filter, return false when filter is full
+// Add add an item into filter, return false when filter is full
 func (f *Filter) Add(item []byte) bool {
 	if f.victim.used {
 		return false
@@ -135,7 +140,7 @@ func (f *Filter) Add(item []byte) bool {
 	return f.addImpl(i, tag)
 }
 
-//AddUnique add an item into filter, return false when filter already contains it or filter is full
+// AddUnique add an item into filter, return false when filter already contains it or filter is full
 func (f *Filter) AddUnique(item []byte) bool {
 	if f.Contain(item) {
 		return false
@@ -169,7 +174,7 @@ func (f *Filter) addImpl(i uint, tag uint32) bool {
 	return true
 }
 
-//Contain return if filter contains an item
+// Contain return if filter contains an item
 func (f *Filter) Contain(key []byte) bool {
 	i1, tag := f.generateIndexTagHash(key)
 	i2 := f.altIndex(i1, tag)
@@ -182,7 +187,7 @@ func (f *Filter) Contain(key []byte) bool {
 	return false
 }
 
-//Delete delete item from filter, return false when item not exist
+// Delete delete item from filter, return false when item not exist
 func (f *Filter) Delete(key []byte) bool {
 	i1, tag := f.generateIndexTagHash(key)
 	i2 := f.altIndex(i1, tag)
@@ -238,7 +243,7 @@ func (f *Filter) FalsePositiveRate() float64 {
 	return float64(fp) / float64(rounds)
 }
 
-//Info return filter's detail info
+// Info return filter's detail info
 func (f *Filter) Info() string {
 	return fmt.Sprintf("CuckooFilter Status:\n"+
 		"\t\t%v\n"+
@@ -250,37 +255,51 @@ func (f *Filter) Info() string {
 }
 
 // Encode returns a byte slice representing a Cuckoo filter
-func (f *Filter) Encode() []byte {
-	var b [3][bytesPerUint32]byte
-	binary.LittleEndian.PutUint32(b[0][:], uint32(f.numItems))
-	binary.LittleEndian.PutUint32(b[1][:], uint32(f.victim.index))
-	binary.LittleEndian.PutUint32(b[2][:], f.victim.tag)
-
-	ret := append(b[0][:], b[1][:]...)
-	ret = append(ret, b[2][:]...)
-	if f.victim.used {
-		ret = append(ret, byte(1))
-	} else {
-		ret = append(ret, byte(0))
+func (f *Filter) Encode() ([]byte, error) {
+	filterReader, filterSize := f.EncodeReader()
+	buf := make([]byte, filterSize)
+	if _, err := io.ReadFull(filterReader, buf); err != nil {
+		return nil, err
 	}
-	ret = append(ret, f.table.Encode()...)
-
-	return ret
+	return buf, nil
 }
 
-// Decode returns a Cuckoo Filter from a byte slice
-func Decode(bytes []byte) (*Filter, error) {
-	if len(bytes) < 20 {
+// EncodeReader returns a reader representing a Cuckoo filter
+func (f *Filter) EncodeReader() (io.Reader, uint) {
+	var metadata [filterMetadataSize]byte
+
+	for i, n := range []uint32{uint32(f.numItems), uint32(f.victim.index), f.victim.tag} {
+		binary.LittleEndian.PutUint32(metadata[i*bytesPerUint32:], n)
+	}
+
+	victimUsed := byte(0)
+	if f.victim.used {
+		victimUsed = byte(1)
+	}
+	metadata[bytesPerUint32*3] = victimUsed
+	tableReader, tableEncodedSize := f.table.Reader()
+	return io.MultiReader(bytes.NewReader(metadata[:]), tableReader), uint(len(metadata)) + tableEncodedSize
+}
+
+// Decode returns a Cuckoo Filter using a copy of the provided byte slice.
+func Decode(b []byte) (*Filter, error) {
+	copiedBytes := make([]byte, len(b))
+	copy(copiedBytes, b)
+	return DecodeFrom(copiedBytes)
+}
+
+// DecodeFrom returns a Cuckoo Filter using the exact provided byte slice (no copy).
+func DecodeFrom(b []byte) (*Filter, error) {
+	if len(b) < 20 {
 		return nil, errors.New("unexpected bytes length")
 	}
-	numItems := uint(binary.LittleEndian.Uint32(bytes[0:4]))
-	curIndex := uint(binary.LittleEndian.Uint32(bytes[4:8]))
-	curTag := binary.LittleEndian.Uint32(bytes[8:12])
-	used := bytes[12] == byte(1)
-	tableType := uint(bytes[13])
+	numItems := uint(binary.LittleEndian.Uint32(b[0*bytesPerUint32:]))
+	curIndex := uint(binary.LittleEndian.Uint32(b[1*bytesPerUint32:]))
+	curTag := binary.LittleEndian.Uint32(b[2*1*bytesPerUint32:])
+	used := b[12] == byte(1)
+	tableType := uint(b[13])
 	table := getTable(tableType).(table)
-	err := table.Decode(bytes[13:])
-	if err != nil {
+	if err := table.Decode(b[13:]); err != nil {
 		return nil, err
 	}
 	return &Filter{

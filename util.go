@@ -5,6 +5,8 @@
 
 package cuckoo
 
+import "fmt"
+
 const (
 	bitsPerByte    = 8
 	bytesPerUint64 = 8
@@ -32,4 +34,15 @@ func maxLoadFactor(tagsPerBucket uint) float64 {
 	default:
 		return 0.99
 	}
+}
+
+func getBucketsFromHint(initialBucketsHint []byte, expectedLength uint) ([]byte, error) {
+	result := initialBucketsHint
+	if len(result) == 0 {
+		result = make([]byte, expectedLength)
+	}
+	if uint(len(result)) != expectedLength {
+		return nil, fmt.Errorf("buckets length should be %d but got %d", expectedLength, len(result))
+	}
+	return result, nil
 }
