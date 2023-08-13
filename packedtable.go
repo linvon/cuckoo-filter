@@ -21,8 +21,8 @@ type PackedTable struct {
 	kDirBitsMask    uint32
 	bitsPerTag      uint
 
-	len        uint
-	numBuckets uint
+	len        uint64
+	numBuckets uint64
 	buckets    []byte
 	perm       PermEncoding
 }
@@ -39,7 +39,7 @@ const (
 )
 
 // Init init table
-func (p *PackedTable) Init(_, bitsPerTag, num uint, initialBucketsHint []byte) error {
+func (p *PackedTable) Init(_, bitsPerTag uint, num uint64, initialBucketsHint []byte) error {
 	p.bitsPerTag = bitsPerTag
 	p.numBuckets = num
 
@@ -48,7 +48,7 @@ func (p *PackedTable) Init(_, bitsPerTag, num uint, initialBucketsHint []byte) e
 	p.kBytesPerBucket = (p.kBitsPerBucket + 7) >> 3
 	p.kDirBitsMask = ((1 << p.kDirBitsPerTag) - 1) << cFpSize
 	// NOTE: use 7 extra bytes to avoid overrun as we always read a uint64
-	p.len = (p.kBitsPerBucket*p.numBuckets+7)>>3 + 7
+	p.len = (uint64(p.kBitsPerBucket)*p.numBuckets+7)>>3 + 7
 	buckets, err := getBucketsFromHint(initialBucketsHint, p.len)
 	if err != nil {
 		return err
@@ -59,17 +59,17 @@ func (p *PackedTable) Init(_, bitsPerTag, num uint, initialBucketsHint []byte) e
 }
 
 // NumBuckets return num of table buckets
-func (p *PackedTable) NumBuckets() uint {
+func (p *PackedTable) NumBuckets() uint64 {
 	return p.numBuckets
 }
 
 // SizeInTags return num of tags that table can store
-func (p *PackedTable) SizeInTags() uint {
+func (p *PackedTable) SizeInTags() uint64 {
 	return tagsPerPTable * p.numBuckets
 }
 
 // SizeInBytes return bytes occupancy of table
-func (p *PackedTable) SizeInBytes() uint {
+func (p *PackedTable) SizeInBytes() uint64 {
 	return p.len
 }
 
@@ -79,9 +79,9 @@ func (p *PackedTable) BitsPerItem() uint {
 }
 
 // PrintBucket print a bucket
-func (p *PackedTable) PrintBucket(i uint) {
-	pos := p.kBitsPerBucket * i / bitsPerByte
-	fmt.Printf("\tbucketBits  =%x\n", p.buckets[pos:pos+p.kBytesPerBucket])
+func (p *PackedTable) PrintBucket(i uint64) {
+	pos := uint64(p.kBitsPerBucket) * i / bitsPerByte
+	fmt.Printf("\tbucketBits  =%x\n", p.buckets[pos:pos+uint64(p.kBytesPerBucket)])
 	var tags [tagsPerPTable]uint32
 	p.ReadBucket(i, &tags)
 	p.PrintTags(tags)
@@ -118,10 +118,10 @@ func (p *PackedTable) sortTags(tags *[tagsPerPTable]uint32) {
 
 // ReadBucket read and decode the bucket i, pass the 4 decoded tags to the 2nd arg
 // bucket bits = 12 codeword bits + dir bits of tag1 + dir bits of tag2 ...
-func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
+func (p *PackedTable) ReadBucket(i uint64, tags *[tagsPerPTable]uint32) {
 	var codeword uint16
 	var lowBits [tagsPerPTable]uint8
-	pos := i * p.kBitsPerBucket >> 3
+	pos := i * uint64(p.kBitsPerBucket) >> 3
 	switch p.bitsPerTag {
 	case 5:
 		// 1 dirBits per tag, 16 bits per bucket
@@ -205,13 +205,13 @@ func (p *PackedTable) ReadBucket(i uint, tags *[tagsPerPTable]uint32) {
 	tags[3] |= uint32(lowBits[3])
 }
 
-func (p *PackedTable) readOutBytes(i, pos uint) (uint64, uint64, uint) {
-	rShift := (p.kBitsPerBucket * i) & (bitsPerByte - 1)
+func (p *PackedTable) readOutBytes(i, pos uint64) (uint64, uint64, uint64) {
+	rShift := (uint64(p.kBitsPerBucket) * i) & (bitsPerByte - 1)
 	// tag is max 32bit, store 31bit per tag, so max occupies 16 bytes
-	kBytes := (rShift + p.kBitsPerBucket + 7) / bitsPerByte
+	kBytes := (rShift + uint64(p.kBitsPerBucket) + 7) / bitsPerByte
 
 	var u1, u2 uint64
-	for k := uint(0); k < kBytes; k++ {
+	for k := uint64(0); k < kBytes; k++ {
 		if k < bytesPerUint64 {
 			u1 |= uint64(p.buckets[pos+k]) << (k * bitsPerByte)
 		} else {
@@ -223,7 +223,7 @@ func (p *PackedTable) readOutBytes(i, pos uint) (uint64, uint64, uint) {
 }
 
 // WriteBucket write tags into bucket i
-func (p *PackedTable) WriteBucket(i uint, tags [tagsPerPTable]uint32) {
+func (p *PackedTable) WriteBucket(i uint64, tags [tagsPerPTable]uint32) {
 	p.sortTags(&tags)
 
 	/* put in direct bits for each tag*/
@@ -242,7 +242,7 @@ func (p *PackedTable) WriteBucket(i uint, tags [tagsPerPTable]uint32) {
 	// note that :  tags[j] = lowBits[j] | highBits[j]
 
 	codeword := p.perm.Encode(lowBits)
-	pos := i * p.kBitsPerBucket >> 3
+	pos := i * uint64(p.kBitsPerBucket) >> 3
 	switch p.kBitsPerBucket {
 	case 16:
 		// 1 dirBits per tag
@@ -342,11 +342,11 @@ func (p *PackedTable) WriteBucket(i uint, tags [tagsPerPTable]uint32) {
 	}
 }
 
-func (p *PackedTable) writeInBytes(i, pos uint, codeword uint16, highBits [tagsPerPTable]uint32) {
-	rShift := (p.kBitsPerBucket * i) & (bitsPerByte - 1)
-	lShift := (rShift + p.kBitsPerBucket) & (bitsPerByte - 1)
+func (p *PackedTable) writeInBytes(i, pos uint64, codeword uint16, highBits [tagsPerPTable]uint32) {
+	rShift := (uint64(p.kBitsPerBucket) * i) & (bitsPerByte - 1)
+	lShift := (rShift + uint64(p.kBitsPerBucket)) & (bitsPerByte - 1)
 	// tag is max 32bit, store 31bit per tag, so max occupies 16 bytes
-	kBytes := (rShift + p.kBitsPerBucket + 7) / bitsPerByte
+	kBytes := (rShift + uint64(p.kBitsPerBucket) + 7) / bitsPerByte
 
 	rMask := uint8(0xff) >> (bitsPerByte - rShift)
 	lMask := uint8(0xff) << lShift
@@ -374,7 +374,7 @@ func (p *PackedTable) writeInBytes(i, pos uint, codeword uint16, highBits [tagsP
 		}
 	}
 
-	for k := uint(0); k < kBytes; k++ {
+	for k := uint64(0); k < kBytes; k++ {
 		if k < bytesPerUint64 {
 			p.buckets[pos+k] = byte(u1 >> (k * bitsPerByte))
 		} else {
@@ -386,7 +386,7 @@ func (p *PackedTable) writeInBytes(i, pos uint, codeword uint16, highBits [tagsP
 }
 
 // FindTagInBuckets find if tag in bucket i1 i2
-func (p *PackedTable) FindTagInBuckets(i1, i2 uint, tag uint32) bool {
+func (p *PackedTable) FindTagInBuckets(i1, i2 uint64, tag uint32) bool {
 	var tags1, tags2 [tagsPerPTable]uint32
 	p.ReadBucket(i1, &tags1)
 	p.ReadBucket(i2, &tags2)
@@ -397,7 +397,7 @@ func (p *PackedTable) FindTagInBuckets(i1, i2 uint, tag uint32) bool {
 }
 
 // DeleteTagFromBucket delete tag from bucket i
-func (p *PackedTable) DeleteTagFromBucket(i uint, tag uint32) bool {
+func (p *PackedTable) DeleteTagFromBucket(i uint64, tag uint32) bool {
 	var tags [tagsPerPTable]uint32
 	p.ReadBucket(i, &tags)
 	for j := 0; j < tagsPerPTable; j++ {
@@ -411,7 +411,7 @@ func (p *PackedTable) DeleteTagFromBucket(i uint, tag uint32) bool {
 }
 
 // InsertTagToBucket insert tag into bucket i
-func (p *PackedTable) InsertTagToBucket(i uint, tag uint32, kickOut bool, oldTag *uint32) bool {
+func (p *PackedTable) InsertTagToBucket(i uint64, tag uint32, kickOut bool, oldTag *uint32) bool {
 	var tags [tagsPerPTable]uint32
 	p.ReadBucket(i, &tags)
 	for j := 0; j < tagsPerPTable; j++ {
@@ -447,20 +447,44 @@ func (p *PackedTable) Info() string {
 		p.bitsPerTag, p.kDirBitsPerTag, p.numBuckets, p.SizeInTags())
 }
 
-const packedTableMetadataSize = 2+bytesPerUint32
+const (
+	packedTableMetadataSize       = 2 + bytesPerUint64
+	packedTableMetadataSizeLegacy = 2 + bytesPerUint32
+)
 
-// Encode returns a byte slice representing a TableBucket
-func (p *PackedTable) Reader() (io.Reader, uint) {
-	var metadata [packedTableMetadataSize]byte
+// Reader returns a reader representing a TableBucket
+func (p *PackedTable) Reader(legacy bool) (io.Reader, uint64) {
+	var metadata []byte
+	if legacy {
+		metadata = make([]byte, packedTableMetadataSizeLegacy)
+	} else {
+		metadata = make([]byte, packedTableMetadataSize)
+	}
+
 	metadata[0] = uint8(TableTypePacked)
 	metadata[1] = uint8(p.bitsPerTag)
-	binary.LittleEndian.PutUint32(metadata[2:], uint32(p.numBuckets))
-	return io.MultiReader(bytes.NewReader(metadata[:]), bytes.NewReader(p.buckets)), uint(len(metadata) + len(p.buckets))
+
+	if legacy {
+		binary.LittleEndian.PutUint32(metadata[2:], uint32(p.numBuckets))
+	} else {
+		binary.LittleEndian.PutUint64(metadata[2:], p.numBuckets)
+	}
+
+	return io.MultiReader(bytes.NewReader(metadata[:]), bytes.NewReader(p.buckets)), uint64(len(metadata)) + uint64(len(p.buckets))
 }
 
 // Decode parse a byte slice into a TableBucket
-func (p *PackedTable) Decode(b []byte) error {
+func (p *PackedTable) Decode(legacy bool, b []byte) error {
 	bitsPerTag := uint(b[1])
-	numBuckets := uint(binary.LittleEndian.Uint32(b[2:]))
-	return p.Init(0, bitsPerTag, numBuckets, b[6:])
+
+	var numBuckets, offset uint64
+	if legacy {
+		numBuckets = uint64(binary.LittleEndian.Uint32(b[2:]))
+		offset = packedTableMetadataSizeLegacy
+	} else {
+		numBuckets = binary.LittleEndian.Uint64(b[2:])
+		offset = packedTableMetadataSize
+	}
+
+	return p.Init(0, bitsPerTag, numBuckets, b[offset:])
 }
