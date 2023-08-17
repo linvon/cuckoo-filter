@@ -8,12 +8,12 @@ package cuckoo
 import "fmt"
 
 const (
-	bitsPerByte    = 8
-	bytesPerUint64 = 8
-	bytesPerUint32 = 4
+	bitsPerByte    uint64 = 8
+	bytesPerUint64        = 8
+	bytesPerUint32        = 4
 )
 
-func getNextPow2(n uint64) uint {
+func getNextPow2(n uint64) uint64 {
 	n--
 	n |= n >> 1
 	n |= n >> 2
@@ -22,7 +22,7 @@ func getNextPow2(n uint64) uint {
 	n |= n >> 16
 	n |= n >> 32
 	n++
-	return uint(n)
+	return n
 }
 
 func maxLoadFactor(tagsPerBucket uint) float64 {
@@ -36,12 +36,12 @@ func maxLoadFactor(tagsPerBucket uint) float64 {
 	}
 }
 
-func getBucketsFromHint(initialBucketsHint []byte, expectedLength uint) ([]byte, error) {
+func getBucketsFromHint(initialBucketsHint []byte, expectedLength uint64) ([]byte, error) {
 	result := initialBucketsHint
 	if len(result) == 0 {
 		result = make([]byte, expectedLength)
 	}
-	if uint(len(result)) != expectedLength {
+	if uint64(len(result)) != expectedLength {
 		return nil, fmt.Errorf("buckets length should be %d but got %d", expectedLength, len(result))
 	}
 	return result, nil
